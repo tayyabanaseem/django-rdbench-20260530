@@ -116,8 +116,7 @@ def model_to_dict(instance, fields=None, exclude=None):
         if fields is not None and f.name not in fields:
             continue
         if exclude and f.name in exclude:
-            continue
-        data[f.name] = f.value_from_object(instance)
+            continue        data[f.name] = f.value_from_object(instance)
     return data
 
 
