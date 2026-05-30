@@ -1215,8 +1215,7 @@ class ForeignKey(ForeignObject):
         qs = self.remote_field.model._base_manager.using(using).filter(
             **{self.remote_field.field_name: value}
         )
-        qs = qs.complex_filter(self.get_limit_choices_to())
-        if not qs.exists():
+        qs = qs.complex_filter(self.get_limit_choices_to())        if not qs.exists():
             raise exceptions.ValidationError(
                 self.error_messages["invalid"],
                 code="invalid",
