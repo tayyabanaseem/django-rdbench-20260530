@@ -1768,11 +1768,13 @@ class IntegerField(Field):
 
     def to_python(self, value):
         if value is None:
-            return value
+            if self.choices and isinstance(value, int):
+                return value
+            elif not self.choices:
+                return value
         try:
             return int(value)
-        except (TypeError, ValueError):
-            raise exceptions.ValidationError(
+        except (TypeError, ValueError):            raise exceptions.ValidationError(
                 self.error_messages['invalid'],
                 code='invalid',
                 params={'value': value},
@@ -2024,11 +2026,13 @@ class TextField(Field):
 
     def to_python(self, value):
         if isinstance(value, str) or value is None:
-            return value
+            if self.choices and isinstance(value, str):
+                return value
+            elif not self.choices:
+                return value
         return str(value)
 
-    def get_prep_value(self, value):
-        value = super().get_prep_value(value)
+    def get_prep_value(self, value):        value = super().get_prep_value(value)
         return self.to_python(value)
 
     def formfield(self, **kwargs):
