@@ -29,11 +29,10 @@ datetime_re = re.compile(
 standard_duration_re = re.compile(
     r'^'
     r'(?:(?P<days>-?\d+) (days?, )?)?'
-    r'((?:(?P<hours>-?\d+):)(?=\d+:\d+))?'
+    r'((?:(?P<hours>-?\d+):)(?=-?\d+:-?\d+))?'
     r'(?:(?P<minutes>-?\d+):)?'
     r'(?P<seconds>-?\d+)'
-    r'(?:\.(?P<microseconds>\d{1,6})\d{0,6})?'
-    r'$'
+    r'(?:\.(?P<microseconds>\d{1,6})\d{0,6})?'    r'$'
 )
 
 # Support the sections of ISO 8601 date representation that are accepted by
