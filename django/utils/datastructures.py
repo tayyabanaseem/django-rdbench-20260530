@@ -25,9 +25,11 @@ class OrderedSet:
     def __iter__(self):
         return iter(self.dict)
 
+    def __reversed__(self):
+        return reversed(self.dict)
+
     def __contains__(self, item):
         return item in self.dict
-
     def __bool__(self):
         return bool(self.dict)
 
