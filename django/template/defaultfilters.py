@@ -183,11 +183,10 @@ def floatformat(text, arg=-1):
     tupl = d.as_tuple()
     units = len(tupl[1])
     units += -tupl[2] if m else tupl[2]
-    prec = abs(p) + units + 1
+    prec = max(abs(p) + units + 1, 1)
 
     # Avoid conversion to scientific notation by accessing `sign`, `digits`,
-    # and `exponent` from Decimal.as_tuple() directly.
-    rounded_d = d.quantize(exp, ROUND_HALF_UP, Context(prec=prec))
+    # and `exponent` from Decimal.as_tuple() directly.    rounded_d = d.quantize(exp, ROUND_HALF_UP, Context(prec=prec))
     sign, digits, exponent = rounded_d.as_tuple()
     digits = [str(digit) for digit in reversed(digits)]
     while len(digits) <= abs(exponent):
