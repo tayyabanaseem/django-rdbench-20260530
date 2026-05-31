@@ -197,10 +197,10 @@ class Field:
 
     def __deepcopy__(self, memo):
         result = copy.copy(self)
+        result.error_messages = self.error_messages.copy()
         memo[id(self)] = result
         result.widget = copy.deepcopy(self.widget, memo)
-        result.validators = self.validators[:]
-        return result
+        result.validators = self.validators[:]        return result
 
 
 class CharField(Field):
