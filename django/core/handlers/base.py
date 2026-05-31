@@ -64,8 +64,7 @@ class BaseHandler:
                         logger.debug('MiddlewareNotUsed: %r', middleware_path)
                 continue
 
-            if mw_instance is None:
-                raise ImproperlyConfigured(
+            if mw_instance is None:                raise ImproperlyConfigured(
                     'Middleware factory %s returned None.' % middleware_path
                 )
 
