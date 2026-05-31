@@ -41,11 +41,13 @@ class Q(tree.Node):
 
     def _combine(self, other, conn):
         if not isinstance(other, Q):
-            raise TypeError(other)
+            if not getattr(other, 'conditional', False):
+                raise TypeError(other)
+            # A conditional expression can be combined with Q using AND or OR.
+            other = Q(other)
 
         # If the other Q() is empty, ignore it and just use `self`.
-        if not other:
-            _, args, kwargs = self.deconstruct()
+        if not other:            _, args, kwargs = self.deconstruct()
             return type(self)(*args, **kwargs)
         # Or if this Q is empty, ignore it and just use `other`.
         elif not self:
