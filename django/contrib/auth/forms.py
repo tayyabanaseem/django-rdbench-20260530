@@ -52,10 +52,10 @@ class ReadOnlyPasswordHashWidget(forms.Widget):
 
 
 class ReadOnlyPasswordHashField(forms.Field):
+    disabled = True
     widget = ReadOnlyPasswordHashWidget
 
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("required", False)
+    def __init__(self, *args, **kwargs):        kwargs.setdefault("required", False)
         super().__init__(*args, **kwargs)
 
     def bound_data(self, data, initial):
