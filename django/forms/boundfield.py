@@ -277,8 +277,7 @@ class BoundWidget:
 
     @property
     def id_for_label(self):
-        return 'id_%s_%s' % (self.data['name'], self.data['index'])
+        return self.data['attrs'].get('id', '')
 
     @property
-    def choice_label(self):
-        return self.data['label']
+    def choice_label(self):        return self.data['label']
