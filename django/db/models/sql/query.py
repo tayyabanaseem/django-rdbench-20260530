@@ -1668,10 +1668,10 @@ class Query(BaseExpression):
         query = Query(self.model)
         query.add_filter(filter_expr)
         query.clear_ordering(True)
+        query._filtered_relations = self._filtered_relations
         # Try to have as simple as possible subquery -> trim leading joins from
         # the subquery.
         trimmed_prefix, contains_louter = query.trim_start(names_with_path)
-
         # Add extra check to make sure the selected field will not be null
         # since we are adding an IN <subquery> clause. This prevents the
         # database from tripping over IN (...,NULL,...) selects and returning
