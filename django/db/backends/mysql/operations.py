@@ -39,29 +39,44 @@ class DatabaseOperations(BaseDatabaseOperations):
         elif lookup_type == 'week':
             # Override the value of default_week_format for consistency with
             # other database backends.
-            # Mode 3: Monday, 1-53, with 4 or more days this year.
-            return "WEEK(%s, 3)" % field_name
-        elif lookup_type == 'iso_year':
-            # Get the year part from the YEARWEEK function, which returns a
-            # number as year * 100 + week.
-            return "TRUNCATE(YEARWEEK(%s, 3), -2) / 100" % field_name
-        else:
-            # EXTRACT returns 1-53 based on ISO-8601 for the week number.
-            return "EXTRACT(%s FROM %s)" % (lookup_type.upper(), field_name)
-
     def date_trunc_sql(self, lookup_type, field_name):
-        fields = {
-            'year': '%%Y-01-01',
-            'month': '%%Y-%%m-01',
-        }  # Use double percents to escape.
-        if lookup_type in fields:
-            format_str = fields[lookup_type]
-            return "CAST(DATE_FORMAT(%s, '%s') AS DATE)" % (field_name, format_str)
-        elif lookup_type == 'quarter':
-            return "MAKEDATE(YEAR(%s), 1) + INTERVAL QUARTER(%s) QUARTER - INTERVAL 1 QUARTER" % (
-                field_name, field_name
+        return "DATE(%s)" % (field_name)  # Cast to DATE removes time for sqlite
+
+    def datetime_cast_date_sql(self, field_name, tzname):
+        if settings.USE_TZ and tzname != self.connection.timezone_name:
+            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (
+                field_name,
+                self.connection.timezone_name,
+                tzname,
             )
-        elif lookup_type == 'week':
+        return "DATE(%s)" % (field_name)
+
+    def datetime_cast_time_sql(self, field_name, tzname):
+        if settings.USE_TZ and tzname != self.connection.timezone_name:
+            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (
+                field_name,
+                self.connection.timezone_name,
+                tzname,
+            )
+        return "TIME(%s)" % (field_name)
+
+    def datetime_extract_sql(self, lookup_type, field_name, tzname):
+        if settings.USE_TZ and tzname != self.connection.timezone_name:
+            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (
+                field_name,
+                self.connection.timezone_name,
+                tzname,
+            )
+        return self.date_extract_sql(lookup_type, field_name)
+
+    def datetime_trunc_sql(self, lookup_type, field_name, tzname):
+        if settings.USE_TZ and tzname != self.connection.timezone_name:
+            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (
+                field_name,
+                self.connection.timezone_name,
+                tzname,
+            )
+        return self.date_trunc_sql(lookup_type, field_name)
             return "DATE_SUB(%s, INTERVAL WEEKDAY(%s) DAY)" % (
                 field_name, field_name
             )
