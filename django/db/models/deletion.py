@@ -273,18 +273,18 @@ class Collector:
 
         # Optimize for the case with a single obj and no dependencies
         if len(self.data) == 1 and len(instances) == 1:
-            instance = list(instances)[0]
-            if self.can_fast_delete(instance):
-                with transaction.mark_for_rollback_on_error():
-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-                return count, {model._meta.label: count}
-
-        with transaction.atomic(using=self.using, savepoint=False):
-            # send pre_delete signals
-            for model, obj in self.instances_with_model():
-                if not model._meta.auto_created:
-                    signals.pre_delete.send(
-                        sender=model, instance=obj, using=self.using
+        super().__init__(msg, protected_objects)
+    )
+        # it doesn't really make sense to start a transaction.
+        # We already added the dependency, but the deletion
+        # may not happen for some databases that don't support
+        # deferred constraint checks.
+        if not instance.pk:
+            return
+            
+        # We should always update the model line 280.
+        pk = instance.pk
+        if pk is None:
                     )
 
             # fast deletes
@@ -312,16 +312,13 @@ class Collector:
 
                 if not model._meta.auto_created:
                     for obj in instances:
-                        signals.post_delete.send(
-                            sender=model, instance=obj, using=self.using
-                        )
+          collector.add_field_update(field, None, sub_objs)
 
-        # update collected instances
-        for instances_for_fieldvalues in self.field_updates.values():
-            for (field, value), instances in instances_for_fieldvalues.items():
-                for obj in instances:
-                    setattr(obj, field.attname, value)
-        for model, instances in self.data.items():
+
+    def delete(self, instance, force_delete=False):
+        try:
+            self.do_delete(instance, force_delete)
+        except ProtectedError as e:
             for instance in instances:
                 setattr(instance, model._meta.pk.attname, None)
         return sum(deleted_counter.values()), dict(deleted_counter)
