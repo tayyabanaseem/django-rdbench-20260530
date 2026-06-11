@@ -445,20 +445,18 @@ class BaseModelForm(BaseForm):
         is saved manually at a later time. Return the model instance.
         """
         if self.errors:
-            raise ValueError(
-                "The %s could not be %s because the data didn't validate." % (
-                    self.instance._meta.object_name,
-                    'created' if self.instance._state.adding else 'changed',
-                )
-            )
-        if commit:
-            # If committing, save the instance and the m2m data immediately.
-            self.instance.save()
-            self._save_m2m()
-        else:
-            # If not committing, add a method to the form to allow deferred
-            # saving of m2m data.
-            self.save_m2m = self._save_m2m
+    def _post_clean(self):
+        """
+        Populate the instance with form data, handle many-to-many fields, and call clean.
+        """
+        opts = self.instance._meta
+        for f in opts.fields:
+            if f.name in self.cleaned_data:
+                setattr(self.instance, f.name, self.cleaned_data[f.name])
+            elif f.name not in self.cleaned_data and not f.many_to_one and not (f.auto_created and not f.concrete) and f.name not in self.fields:
+                if f.has_default():
+                    setattr(self.instance, f.name, f.get_default())
+        return self.instance
         return self.instance
 
     save.alters_data = True
