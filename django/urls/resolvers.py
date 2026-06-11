@@ -27,17 +27,18 @@ from .converters import get_converter
 from .exceptions import NoReverseMatch, Resolver404
 from .utils import get_callable
 
+    If the ``urlconf`` parameter is not provided, we return a resolver for the
+    default URLconf.
+    """
+    # Ensure we always resolve to ROOT_URLCONF to avoid creating multiple
+    # URLResolver instances with different urlconf values before and after
+    # request handling initializes set_urlconf
+    if urlconf is None or urlconf == settings.ROOT_URLCONF:
+        urlconf = settings.ROOT_URLCONF
+    return _get_resolver(urlconf)
 
-class ResolverMatch:
-    def __init__(self, func, args, kwargs, url_name=None, app_names=None, namespaces=None, route=None):
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-        self.url_name = url_name
-        self.route = route
 
-        # If a URLRegexResolver doesn't have a namespace or app_name, it passes
-        # in an empty value.
+@functools.lru_cache(maxsize=None)
         self.app_names = [x for x in app_names if x] if app_names else []
         self.app_name = ':'.join(self.app_names)
         self.namespaces = [x for x in namespaces if x] if namespaces else []
