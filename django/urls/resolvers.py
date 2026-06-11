@@ -1,10 +1,10 @@
-"""
-This module converts requested URLs to callback view functions.
+import functools
+import inspect
+import re
+from django.conf import settings
 
-URLResolver is the main class here. Its resolve() method takes a URL (as
-a string) and returns a ResolverMatch object which provides access to all
-attributes of the resolved URL match.
-"""
+from django.core.checks import Error, Warning
+from django.core.checks.urls import check_url_config
 import functools
 import inspect
 import re
@@ -27,17 +27,19 @@ from .converters import get_converter
 from .exceptions import NoReverseMatch, Resolver404
 from .utils import get_callable
 
+    If the ``urlconf`` parameter is not provided, we return a resolver for the
+    default URLconf.
+    """
+    if urlconf is None:
+        urlconf = settings.ROOT_URLCONF
+    elif urlconf == get_urlconf():
+        # Normalize get_urlconf() result to ROOT_URLCONF to ensure consistent
+        # caching before and after set_urlconf is called during request handling
+        urlconf = settings.ROOT_URLCONF
+    return _get_resolver(urlconf)
 
-class ResolverMatch:
-    def __init__(self, func, args, kwargs, url_name=None, app_names=None, namespaces=None, route=None):
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-        self.url_name = url_name
-        self.route = route
 
-        # If a URLRegexResolver doesn't have a namespace or app_name, it passes
-        # in an empty value.
+@functools.lru_cache(maxsize=None)
         self.app_names = [x for x in app_names if x] if app_names else []
         self.app_name = ':'.join(self.app_names)
         self.namespaces = [x for x in namespaces if x] if namespaces else []
