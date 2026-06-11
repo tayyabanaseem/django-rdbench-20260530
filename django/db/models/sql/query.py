@@ -1597,15 +1597,20 @@ class Query(BaseExpression):
         Always trim any direct join if the target column is already in the
         previous table. Can't trim reverse joins as it's unknown if there's
         anything on the other side of the join.
-        """
-        joins = joins[:]
-        for pos, info in enumerate(reversed(path)):
-            if len(joins) == 1 or not info.direct:
-                break
-            if info.filtered_relation:
-                break
-            join_targets = {t.column for t in info.join_field.foreign_related_fields}
-            cur_targets = {t.column for t in targets}
+    def split_exclude(self, filter_expr, can_reuse, names_with_path):
+        # Prepare a new query object to collect the pieces of the exclusion.
+        query = self.clone()
+        # Preserve annotations and FilteredRelation when splitting excludes
+        # to ensure the ORM can properly resolve annotated fields in subqueries
+        query.annotations = self.annotations.copy()
+        for alias, annotation in self.annotations.items():
+            if isinstance(annotation, FilteredRelation):
+                # Ensure FilteredRelation is properly cloned with its join path
+                query.annotations[alias] = annotation.clone()
+        query.is_sliced = False
+        query.clear_deferred_loading()
+        query.add_filter(filter_expr)
+        return query, None
             if not cur_targets.issubset(join_targets):
                 break
             targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
