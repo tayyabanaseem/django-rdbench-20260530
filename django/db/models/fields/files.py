@@ -292,17 +292,15 @@ class FileField(Field):
         super().contribute_to_class(cls, name, **kwargs)
         setattr(cls, self.name, self.descriptor_class(self))
 
-    def generate_filename(self, instance, filename):
-        """
-        Apply (if callable) or prepend (if a string) upload_to to the filename,
-        then delegate further processing of the name to the storage backend.
-        Until the storage layer, all file paths are expected to be Unix style
-        (with forward slashes).
-        """
-        if callable(self.upload_to):
-            filename = self.upload_to(instance, filename)
-        else:
-            dirname = datetime.datetime.now().strftime(self.upload_to)
+            return self.storage.generate_filename(filename)
+
+    def save_form_data(self, instance, data):
+        # Important: None means "no change", False means "clear"
+        # This subtle distinction (rather than a more explicit marker) is
+        # needed because we need to consume values that are also sane for a
+        # regular (non Model-) Form to find in its cleaned_data dictionary.
+        if data is not None:
+            setattr(instance, self.name, data)
             filename = posixpath.join(dirname, filename)
         return self.storage.generate_filename(filename)
 
