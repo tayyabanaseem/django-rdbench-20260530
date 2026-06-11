@@ -1,9 +1,9 @@
+from django.db.models.expressions import Col
 from django.db.models.query_utils import Q
-from django.db.models.sql.query import Query
-
-__all__ = ['CheckConstraint', 'UniqueConstraint']
+from django.db.models.sql.expressions import SimpleCol
 
 
+class BaseConstraint:
 class BaseConstraint:
     def __init__(self, name):
         self.name = name
@@ -67,27 +67,66 @@ class CheckConstraint(BaseConstraint):
 
 
 class UniqueConstraint(BaseConstraint):
-    def __init__(self, *, fields, name, condition=None):
-        if not fields:
-            raise ValueError('At least one field is required to define a unique constraint.')
-        if not isinstance(condition, (type(None), Q)):
-            raise ValueError('UniqueConstraint.condition must be a Q instance.')
-        self.fields = tuple(fields)
-        self.condition = condition
-        super().__init__(name)
+        return super().deconstruct()
 
-    def _get_condition_sql(self, model, schema_editor):
-        if self.condition is None:
-            return None
-        query = Query(model=model)
-        where = query.build_where(self.condition)
-        compiler = query.get_compiler(connection=schema_editor.connection)
-        sql, params = where.as_sql(compiler, schema_editor.connection)
-        return sql % tuple(schema_editor.quote_value(p) for p in params)
+
+class SimpleColConverter(SQLCompiler):
+    """Convert Col references to SimpleCol in check constraints."""
+    
+    def convert_to_simplecol(self, node):
+        """Recursively convert Col nodes to SimpleCol in the expression tree."""
+        if isinstance(node, Q):
+            # Convert Q object children
+            new_children = []
+            for child in node.children:
+                if isinstance(child, tuple):
+                    # This is a (key, value) pair, keep as is
+                    new_children.append(child)
+                else:
+                    # This is another Q object, recurse
+                    new_children.append(self.convert_to_simplecol(child))
+            node.children = new_children
+        return node
+
+
+class CheckConstraint(BaseConstraint):
+    def __init__(self, *, check, name):
+        self.check = check
+        self.name = name
 
     def constraint_sql(self, model, schema_editor):
-        fields = [model._meta.get_field(field_name).column for field_name in self.fields]
-        condition = self._get_condition_sql(model, schema_editor)
+        """Generate SQL for the check constraint, ensuring no table-qualified column names."""
+        query = Query(model, self.check)
+        where = query.build_where(self.check)
+        compiler = SQLCompiler(query, schema_editor.connection, 'default')
+        where = self._convert_cols_to_simplecol(where)
+    def create_sql(self, model, schema_editor):
+        query = Query(model, self.check)
+        where = query.build_where(self.check)
+        where = self._convert_cols_to_simplecol(where)
+        compiler = SQLCompiler(query, schema_editor.connection, 'default')
+        sql, params = compiler.compile(where)
+        return 'CHECK (%s)' % sql, params
+
+    def _convert_cols_to_simplecol(self, node):
+        """
+        Recursively convert Col nodes to SimpleCol in the constraint expression tree.
+        This prevents fully qualified column names in check constraints, which fail
+        on SQLite and Oracle when the table is renamed.
+        """
+        if isinstance(node, Col):
+            return SimpleCol(node.alias, node.output_field)
+        
+        if isinstance(node, Q):
+            new_children = []
+            for child in node.children:
+                if isinstance(child, Q):
+                    new_children.append(self._convert_cols_to_simplecol(child))
+                else:
+                    new_children.append(child)
+            node.children = new_children
+        
+        return node
         return schema_editor._unique_sql(model, fields, self.name, condition=condition)
 
     def create_sql(self, model, schema_editor):
