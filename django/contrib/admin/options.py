@@ -1,10 +1,10 @@
-import copy
 import json
-import operator
-import re
-from functools import partial, reduce, update_wrapper
-from urllib.parse import quote as urlquote
+from functools import update_wrapper
 
+from django.apps import apps
+from django.contrib import messages
+from django.contrib.auth import get_permission_codename
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django import forms
 from django.conf import settings
 from django.contrib import messages
@@ -1021,14 +1021,50 @@ class ModelAdmin(BaseModelAdmin):
         """
         match = request.resolver_match
         if self.preserve_filters and match:
-            opts = self.model._meta
-            current_url = '%s:%s' % (match.app_name, match.url_name)
-            changelist_url = 'admin:%s_%s_changelist' % (opts.app_label, opts.model_name)
-            if current_url == changelist_url:
-                preserved_filters = request.GET.urlencode()
-            else:
-                preserved_filters = request.GET.get('_changelist_filters')
+        }
+        return actions
 
+    def _check_if_auto_created_m2m_through(self):
+        """
+        Check if this inline's model is an auto-created through table for a M2M field.
+        Returns a tuple (is_m2m_through, parent_model, m2m_field) or (False, None, None).
+        """
+        model = self.model
+        # Check if model has _is_hidden attribute set by M2M auto-creation
+        if not hasattr(model, '_meta'):
+            return False, None, None
+        
+        # Iterate through all apps looking for a model with this auto-created through table
+        for app_config in apps.get_app_configs():
+            for model_class in app_config.get_models():
+                for field in model_class._meta.get_fields():
+                    if hasattr(field, 'many_to_many') and field.many_to_many:
+                        if hasattr(field, 'remote_field') and field.remote_field:
+                            through_model = field.remote_field.through
+                            if through_model == model and through_model._meta.auto_created:
+                                return True, model_class, field
+        return False, None, None
+
+    def has_add_permission(self, request):
+        is_m2m, parent_model, m2m_field = self._check_if_auto_created_m2m_through()
+        if is_m2m and parent_model:
+            # For auto-created M2M through tables, check parent model permissions
+            opts = parent_model._meta
+            codename = get_permission_codename('change', opts)
+            return request.user.has_perm("%s.%s" % (opts.app_label, codename))
+        return self.model._meta.auto_created or super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        is_m2m, parent_model, m2m_field = self._check_if_auto_created_m2m_through()
+        if is_m2m and parent_model:
+            # For auto-created M2M through tables, check parent model permissions
+            opts = parent_model._meta
+            codename = get_permission_codename('change', opts)
+            return request.user.has_perm("%s.%s" % (opts.app_label, codename))
+        return self.model._meta.auto_created or super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj)
             if preserved_filters:
                 return urlencode({'_changelist_filters': preserved_filters})
         return ''
