@@ -273,24 +273,27 @@ class Collector:
 
         # Optimize for the case with a single obj and no dependencies
         if len(self.data) == 1 and len(instances) == 1:
-            instance = list(instances)[0]
-            if self.can_fast_delete(instance):
-                with transaction.mark_for_rollback_on_error():
-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
-                return count, {model._meta.label: count}
+        super().__init__(msg, protected_objects)
+    )
 
-        with transaction.atomic(using=self.using, savepoint=False):
-            # send pre_delete signals
-            for model, obj in self.instances_with_model():
-                if not model._meta.auto_created:
-                    signals.pre_delete.send(
-                        sender=model, instance=obj, using=self.using
-                    )
+        # it doesn't really make sense to start a transaction.
+        # We already added the dependency, but the deletion
+        # may not happen for some databases that don't support
+        # deferred constraint checks.
+        pk = instance.pk
+        if pk is None:
+            return
+        
+        # Mark the instance as deleted by clearing its PK
+        # This mimics the behavior in Collector.delete() for bulk deletions
+        # and ensures consistency across fast-delete and regular delete paths
+        instance.pk = None
+        for field in instance._meta.many_to_one:
+            if field.name != 'pk':
+                setattr(instance, field.attname, None)
 
-            # fast deletes
-            for qs in self.fast_deletes:
-                count = qs._raw_delete(using=self.using)
-                deleted_counter[qs.model._meta.label] += count
+
+def delete(self, instance, force_delete=False):
 
             # update fields
             for model, instances_for_fieldvalues in self.field_updates.items():
