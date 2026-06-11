@@ -907,14 +907,14 @@ class QuerySet:
         else:
             clone.query.add_q(Q(*args, **kwargs))
         return clone
-
-    def complex_filter(self, filter_obj):
-        """
-        Return a new QuerySet instance with filter_obj added to the filters.
-
-        filter_obj can be a Q object or a dictionary of keyword lookup
-        arguments.
-
+    def _combine(self, other, connector):
+        if not isinstance(other, QuerySet):
+            raise TypeError(other)
+        
+        combined_qs = self._clone()
+        combined_qs.query = combined_qs.query.copy()
+        combined_qs.query.combine(other.query, connector)
+        return combined_qs
         This exists to support framework features such as 'limit_choices_to',
         and usually it will be more natural to use other methods.
         """
