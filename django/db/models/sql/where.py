@@ -51,11 +51,15 @@ class WhereNode(tree.Node):
             if hasattr(c, 'split_having'):
                 where_part, having_part = c.split_having(in_negated)
                 if where_part is not None:
-                    where_parts.append(where_part)
-                if having_part is not None:
-                    having_parts.append(having_part)
-            elif c.contains_aggregate:
-                having_parts.append(c)
+        INSERT INTO "new__app_testconstraint" ("id", "field_1", "flag") SELECT "id", "field_1", "flag" FROM "app_testconstraint";
+
+        DROP TABLE "app_testconstraint";
+        ALTER TABLE "new__app_testconstraint" RENAME TO "app_testconstraint";
+
+
+
+        COMMIT;
+```                having_parts.append(c)
             else:
                 where_parts.append(c)
         having_node = self.__class__(having_parts, self.connector, self.negated) if having_parts else None
