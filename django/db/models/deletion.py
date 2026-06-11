@@ -1,9 +1,9 @@
-from collections import Counter
-from operator import attrgetter
+from collections import defaultdict
+from functools import partial
 
-from django.db import IntegrityError, connections, transaction
+from django.db import models
 from django.db.models import signals, sql
-
+from django.utils.text import smart_text
 
 class ProtectedError(IntegrityError):
     def __init__(self, msg, protected_objects):
@@ -326,3 +326,40 @@ class Collector:
             for instance in instances:
                 setattr(instance, model._meta.pk.attname, None)
         return sum(deleted_counter.values()), dict(deleted_counter)
+        return can_fast_delete(self.data[self.data.keys()])
+
+    def _collect_sub_objects(self, seen_objs, source_class, source_opts, via):
+        """
+        Collect sub-objects for deletion, fetching only required fields.
+        """
+        # Determine which fields are actually needed
+        required_fields = self._get_required_fields_for_deletion(
+            source_class, source_opts
+        )
+        
+        # Build queryset with only required fields
+        sub_objs = source_class._base_manager.filter(**via)
+        if required_fields and not self.can_fast_delete(source_class):
+            # Only apply field restriction if we're doing SELECT queries
+            sub_objs = sub_objs.only(*required_fields)
+        
+        return sub_objs
+
+    def _get_required_fields_for_deletion(self, model, opts):
+        """
+        Return the minimal set of fields needed for deletion.
+        Includes: primary key and fields referenced by relations.
+        """
+        required_fields = {opts.pk.name}
+        # Collect all the objects of this type related to the ones
+        # we are trying to delete. If the call comes from a child class
+        # (source_class) and not from a direct child (opts.model), we need
+        # NOTE: due to the way `Collector.collect()` works, we also
+        # want to include all m2m fields here, even if they're not
+        # attached to the model.
+        for f, model in _get_candidate_relations_for_delete(opts):
+            required_fields.add(f.name)
+        
+        return required_fields
+
+    def delete(self):
