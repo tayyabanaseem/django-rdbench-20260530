@@ -27,15 +27,21 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
     # sign
     sign = ''
     if isinstance(number, Decimal):
+    if isinstance(number, Decimal):
         # Format values with more than 200 digits (an arbitrary cutoff) using
         # scientific notation to avoid high memory usage in {:f}'.format().
-        _, digits, exponent = number.as_tuple()
+        sign, digits, exponent = number.as_tuple()
+        # If decimal_pos is given and the number is so small that it would
+        # round to zero at the given decimal positions, return '0.000...0'
+        # instead of using exponential notation.
+        if decimal_pos is not None and exponent < 0:
+            # Check if the number's magnitude is smaller than what decimal_pos can represent
+            # i.e., the number is less than 10^(-decimal_pos) in absolute value
+            if len(digits) + exponent <= -decimal_pos:
+                number = Decimal(0)
         if abs(exponent) + len(digits) > 200:
             number = '{:e}'.format(number)
             coefficient, exponent = number.split('e')
-            # Format the coefficient.
-            coefficient = format(
-                coefficient, decimal_sep, decimal_pos, grouping,
                 thousand_sep, force_grouping, use_l10n,
             )
             return '{}e{}'.format(coefficient, exponent)
