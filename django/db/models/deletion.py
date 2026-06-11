@@ -312,15 +312,40 @@ class Collector:
                 deleted_counter[model._meta.label] += count
 
                 if not model._meta.auto_created:
-                    for obj in instances:
-                        signals.post_delete.send(
-                            sender=model, instance=obj, using=self.using
-                        )
+            return
+        new_objs = model._base_manager.using(self.using).filter(
+            pk__in=[obj.pk for obj in objs])
+        
+        # Optimize deletion by only selecting fields needed for traversal
+        # This avoids fetching fields with corrupt data that aren't needed
+        # for determining cascade delete relationships
+        opts = model._meta
+        fields_to_select = [opts.pk.attname]
+        
+        # Include foreign key fields that reference other models
+        # These are needed to determine what related objects to cascade delete
+        for field in opts.get_fields():
+            # Include forward relations (ForeignKey, OneToOneField)
+            if field.many_to_one:
+                if hasattr(field, 'attname'):
+                    fields_to_select.append(field.attname)
+                else:
+                    fields_to_select.append(field.name)
+            # Include reverse one-to-one (auto_created=True)
+            elif field.one_to_one and field.auto_created:
+                if hasattr(field, 'attname'):
+                    fields_to_select.append(field.attname)
+                else:
+                    fields_to_select.append(field.name)
+        
+        # Remove duplicates while preserving pk first
+        fields_to_select = list(dict.fromkeys(fields_to_select))
+        
+        # Use only() to restrict fetched fields to those needed
+        return new_objs.only(*fields_to_select)
 
-        # update collected instances
-        for instances_for_fieldvalues in self.field_updates.values():
-            for (field, value), instances in instances_for_fieldvalues.items():
-                for obj in instances:
+    def get_del_batch(self, del_query, model):
+        """
                     setattr(obj, field.attname, value)
         for model, instances in self.data.items():
             for instance in instances:
