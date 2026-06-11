@@ -97,15 +97,13 @@ def apply_limit_choices_to_to_formfield(formfield):
         limit_choices_to = formfield.get_limit_choices_to()
         if limit_choices_to is not None:
             formfield.queryset = formfield.queryset.complex_filter(limit_choices_to)
-
-
-def fields_for_model(model, fields=None, exclude=None, widgets=None,
-                     formfield_callback=None, localized_fields=None,
-                     labels=None, help_texts=None, error_messages=None,
-                     field_classes=None, *, apply_limit_choices_to=True):
-    """
-    Return a dictionary containing form fields for the given model.
-
+    opts = instance._meta
+    data = {}
+    for f in chain(opts.many_to_one_rels, opts.one_to_one_rels, opts.get_fields()):
+        if fields is not None and f.name not in fields:
+            continue
+        if f.name in exclude:
+            continue
     ``fields`` is an optional list of field names. If provided, return only the
     named fields.
 
