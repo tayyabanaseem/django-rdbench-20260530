@@ -68,10 +68,9 @@ class Engine:
             raise TemplateDoesNotExist(name)
 
     def render_to_string(self, template_name, context=None):
-        context = Context(context or {}, autoescape=self.autoescape)
         t = self.get_template(template_name)
-        return t.render(context) if isinstance(context, Context) else t.render(Context(context, autoescape=self.autoescape))
-
+        context = Context(context or {}, autoescape=self.autoescape)
+        return t.render(context)
     @cached_property
     def template_context_processors(self):
         context_processors = _builtin_context_processors
