@@ -282,24 +282,40 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
         return self.autocomplete_fields
 
     def get_view_on_site_url(self, obj=None):
-        if obj is None or not self.view_on_site:
-            return None
+        return _get_parameter_from_request(self.list_filter, request, 'list_filter')
 
-        if callable(self.view_on_site):
-            return self.view_on_site(obj)
-        elif self.view_on_site and hasattr(obj, 'get_absolute_url'):
-            # use the ContentType lookup if view_on_site is True
-            return reverse('admin:view_on_site', kwargs={
-                'content_type_id': get_content_type_for_model(obj).pk,
-                'object_id': obj.pk
-            })
++    def get_inlines(self, request, obj=None):
+        """
+        Return a list of InlineModelAdmin classes for use on admin pages.
+        
+        By default, returns self.inlines. Can be overridden to dynamically
+        determine inlines based on the request or model instance.
+        """
+        return self.inlines
 
-    def get_empty_value_display(self):
+    def get_inlines(self, request, obj=None):
         """
-        Return the empty_value_display set on ModelAdmin or AdminSite.
+        Return a list of InlineModelAdmin classes for use on admin pages.
+        
+        By default, returns self.inlines. Can be overridden to dynamically
+        determine inlines based on the request or model instance.
         """
-        try:
-            return mark_safe(self.empty_value_display)
+        return self.inlines
+
+    def get_inline_instances(self, request, obj=None):
+        """
+        Return a list of InlineModelAdmin instances to be used on admin pages.
+        """
+        inlines = self.get_inlines(request, obj)
+        inline_instances = []
+        for inline_class in inlines:
+            inline = inline_class(self.model, self.admin_site)
+            inline_instances.append(inline)
+        return inline_instances
+
+    def get_inlines(self, request, obj=None):
+        inlines = self.inlines
+        return inlines
         except AttributeError:
             return mark_safe(self.admin_site.empty_value_display)
 
