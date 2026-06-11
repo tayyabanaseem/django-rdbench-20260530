@@ -147,13 +147,12 @@ LANGUAGES_BIDI = ["he", "ar", "fa", "ur"]
 # If you set this to False, Django will make some optimizations so as not
 # to load the internationalization machinery.
 USE_I18N = True
-LOCALE_PATHS = []
+# Storage of uploaded files should be restricted to a limited set of directories.
+FILE_UPLOAD_TEMP_DIR = None
 
-# Settings for language cookie
-LANGUAGE_COOKIE_NAME = 'django_language'
-LANGUAGE_COOKIE_AGE = None
-LANGUAGE_COOKIE_DOMAIN = None
-LANGUAGE_COOKIE_PATH = '/'
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = None
 
 
 # If you set this to True, Django will format dates, numbers and calendars
