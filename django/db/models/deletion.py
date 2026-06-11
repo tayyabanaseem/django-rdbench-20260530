@@ -277,11 +277,11 @@ class Collector:
             if self.can_fast_delete(instance):
                 with transaction.mark_for_rollback_on_error():
                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+                setattr(instance, model._meta.pk.attname, None)
+                instance.save()  # Save the instance to update the database
                 return count, {model._meta.label: count}
 
         with transaction.atomic(using=self.using, savepoint=False):
-            # send pre_delete signals
-            for model, obj in self.instances_with_model():
                 if not model._meta.auto_created:
                     signals.pre_delete.send(
                         sender=model, instance=obj, using=self.using
