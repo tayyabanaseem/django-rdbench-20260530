@@ -59,15 +59,20 @@ class ResolverMatch:
     def __repr__(self):
         return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
             self._func_path, self.args, self.kwargs, self.url_name,
-            self.app_names, self.namespaces, self.route,
-        )
 
 
 @functools.lru_cache(maxsize=None)
+def _get_cached_resolver(urlconf=None):
+    return URLResolver(RegexPattern(r'^/'), urlconf)
+
+
 def get_resolver(urlconf=None):
     if urlconf is None:
         urlconf = settings.ROOT_URLCONF
-    return URLResolver(RegexPattern(r'^/'), urlconf)
+    return _get_cached_resolver(urlconf)
+
+
+@functools.lru_cache(maxsize=None)
 
 
 @functools.lru_cache(maxsize=None)
