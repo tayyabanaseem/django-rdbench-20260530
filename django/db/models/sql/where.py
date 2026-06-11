@@ -241,3 +241,10 @@ class SubqueryConstraint:
         query.set_values(self.targets)
         query_compiler = query.get_compiler(connection=connection)
         return query_compiler.as_subquery_condition(self.alias, self.columns, compiler)
+    def split_exclude(self, filter_expr, can_reuse, names_with_path):
+        query.add_filter(filter_expr)
+        return query, None
+
+    def build_filter(self, filter_clause, can_reuse, names_with_path):
+        if filter_clause[0] == 'isnull':
+            return 'IS %s' % self.build_sql(filter_clause[1])
