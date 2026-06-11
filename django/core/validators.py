@@ -71,15 +71,13 @@ class RegexValidator:
 
 
 @deconstructible
-class URLValidator(RegexValidator):
-    ul = '\u00a1-\uffff'  # unicode letters range (must not be a raw string)
-
-    # IP patterns
-    ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
-    ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
-
-    # Host patterns
-    hostname_re = r'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
+    message = _('Enter a valid URL.')
+    scheme_re = _lazy_re_compile(r'^([a-z][a-z\d.+-]*)://', re.IGNORECASE)
+    auth_re = _lazy_re_compile(
+        r'^([a-z0-9\-._~%!$&\'()*+,;=]+)@'
+    )
+    ipv4_re = _lazy_re_compile(
+        r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$'
     # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
     domain_re = r'(?:\.(?!-)[a-z' + ul + r'0-9-]{1,63}(?<!-))*'
     tld_re = (
