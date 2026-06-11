@@ -362,3 +362,10 @@ class Command(BaseCommand):
             action = ' -> ' + action
         truncated = Truncator(action)
         return prefix + operation.describe() + truncated.chars(40), is_error
+    from django.core.exceptions import MigrationExecutionError
+
+    # Find all apps that need to be migrated.
+    apps = [app_config for app_config in get_app_configs() if hasattr(app_config, 'migrations') and app_config.migrations.__path__]
+
+    # Create a temporary directories list to properly handle migrations without __init__.py
+    temp_dirs = []
