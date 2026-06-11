@@ -180,16 +180,23 @@ class RelatedFieldListFilter(FieldListFilter):
         """
         Return True if a "(None)" choice should be included, which filters
         out everything except empty relationships.
-        """
-        return self.field.null or (self.field.is_relation and self.field.many_to_many)
+        if self.field_admin_ordering:
+            kwargs['ordering'] = self.field_admin_ordering
+        return kwargs
 
-    def has_output(self):
-        if self.include_empty_choice:
-            extra = 1
-        else:
-            extra = 0
-        return len(self.lookup_choices) + extra > 1
+    def get_lookup_choices(self):
+        dependent_field = self.field.remote_field
+        if dependent_field.model._default_manager.exists():
+            ordering = self.get_ordering_field_columns()
+            if ordering:
+                return dependent_field.get_choices(include_blank=False, ordering=ordering)
+            else:
+                # Fall back to model's Meta.ordering
+                return dependent_field.get_choices(include_blank=False, ordering=dependent_field.model._meta.ordering)
+        return dependent_field.get_choices(include_blank=False)
 
+    def get_lookup(self, lookup_name):
+        return self.field.get_lookup(lookup_name)
     def expected_parameters(self):
         return [self.lookup_kwarg, self.lookup_kwarg_isnull]
 
