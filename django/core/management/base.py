@@ -67,13 +67,18 @@ def handle_default_options(options):
     so that ManagementUtility can handle them before searching for
     user commands.
     """
-    if options.settings:
-        os.environ['DJANGO_SETTINGS_MODULE'] = options.settings
-    if options.pythonpath:
-        sys.path.insert(0, options.pythonpath)
+        parser.add_argument(
+            '--traceback', action='store_true',
+            help='Raise on CommandError exceptions.')
+        parser.add_argument(
+            '--skip-checks', dest='skip_checks', action='store_true',
+            help='Skip system checks.')
+        if options.skip_checks:
+            print("--skip-checks is deprecated. Use --skip-checks instead.")
 
-
-def no_translations(handle_func):
+        if self.requires_system_checks:
+            parser.add_argument(
+                '--no-color', action='store_true', dest='no_color',
     """Decorator that forces a command to run with translations deactivated."""
     def wrapped(*args, **kwargs):
         from django.utils import translation
@@ -83,14 +88,15 @@ def no_translations(handle_func):
             res = handle_func(*args, **kwargs)
         finally:
             if saved_locale is not None:
-                translation.activate(saved_locale)
-        return res
-    return wrapped
-
-
-class DjangoHelpFormatter(HelpFormatter):
-    """
-    Customized formatter so that command-specific arguments appear in the
+        parser.add_argument(
+            '--traceback', action='store_true',
+            help='Raise on CommandError exceptions.')
+        parser.add_argument(
+            '--skip-checks', dest='skip_checks', action='store_true',
+            help='Skip system checks.')
+        if self.requires_system_checks:
+            parser.add_argument(
+                '--no-color', action='store_true', dest='no_color',
     --help output before arguments common to all commands.
     """
     show_last = {
