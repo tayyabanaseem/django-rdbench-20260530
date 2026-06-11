@@ -32,11 +32,20 @@ class DatabaseClient(BaseDatabaseClient):
             subprocess_env['PGPASSWORD'] = str(passwd)
         try:
             # Allow SIGINT to pass to psql to abort queries.
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            subprocess.run(args, check=True, env=subprocess_env)
-        finally:
-            # Restore the original SIGINT handler.
-            signal.signal(signal.SIGINT, sigint_handler)
+                    args += ['-U', settings_dict['USER']]
+                if settings_dict.get('PASSWORD'):
+                    args += ['-w']
 
-    def runshell(self):
-        DatabaseClient.runshell_db(self.connection.get_connection_params())
+                # Add SSL certificate parameters if present
+                ssl_options = settings_dict.get('OPTIONS', {})
+                if ssl_options.get('sslmode'):
+                    args += ['-sslmode', ssl_options['sslmode']]
+                if ssl_options.get('sslcert'):
+                    args += ['-sslcert', ssl_options['sslcert']]
+                if ssl_options.get('sslkey'):
+                    args += ['-sslkey', ssl_options['sslkey']]
+                if ssl_options.get('sslrootcert'):
+                    args += ['-sslrootcert', ssl_options['sslrootcert']]
+
+                if settings_dict.get('PORT'):
+                    args += ['-p', settings_dict['PORT']]
