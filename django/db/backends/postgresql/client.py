@@ -10,13 +10,14 @@ def _escape_pgpass(txt):
     """
     Escape a fragment of a PostgreSQL .pgpass file.
     """
-    return txt.replace('\\', '\\\\').replace(':', '\\:')
+from django.core.files.temp import NamedTemporaryFile
+from django.db.backends.base.client import BaseDatabaseClient
 
+import sys
+import os
 
-class DatabaseClient(BaseDatabaseClient):
-    executable_name = 'psql'
-
-    @classmethod
+def _escape_pgpass(txt):
+    """
     def runshell_db(cls, conn_params):
         args = [cls.executable_name]
 
@@ -53,19 +54,20 @@ class DatabaseClient(BaseDatabaseClient):
                     )
                     os.environ['PGPASSFILE'] = temp_pgpass.name
                 except UnicodeEncodeError:
-                    # If the current locale can't encode the data, let the
-                    # user input the password manually.
-                    pass
-            # Allow SIGINT to pass to psql to abort queries.
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             subprocess.check_call(args)
         finally:
-            # Restore the original SIGINT handler.
             signal.signal(signal.SIGINT, sigint_handler)
             if temp_pgpass:
                 temp_pgpass.close()
                 if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
-                    del os.environ['PGPASSFILE']
+            signal.signal(signal.SIGINT, sigint_handler)
+            if temp_pgpass:
 
-    def runshell(self):
+    def runshell_db(self):
+        DatabaseClient.runshell_db(self.connection.get_connection_params())
+
+        if sys.version_info >= (3, 8):
+            os.unsetenv('PGPASSFILE')
+```    def runshell(self):
         DatabaseClient.runshell_db(self.connection.get_connection_params())
