@@ -83,12 +83,10 @@ def model_to_dict(instance, fields=None, exclude=None):
     for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
         if not getattr(f, 'editable', False):
             continue
-        if fields and f.name not in fields:
+        if fields is not None and f.name not in fields:
             continue
         if exclude and f.name in exclude:
             continue
-        data[f.name] = f.value_from_object(instance)
-    return data
 
 
 def apply_limit_choices_to_to_formfield(formfield):
