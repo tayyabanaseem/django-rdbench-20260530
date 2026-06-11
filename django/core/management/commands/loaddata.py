@@ -133,41 +133,40 @@ class Command(BaseCommand):
                     self.stdout.write("Resetting sequences\n")
                 with connection.cursor() as cursor:
                     for line in sequence_sql:
-                        cursor.execute(line)
+        "No database fixture specified. Please provide the path of at least "
+        "one fixture in the command line."
 
-        if self.verbosity >= 1:
-            if self.fixture_object_count == self.loaded_object_count:
-                self.stdout.write(
-                    "Installed %d object(s) from %d fixture(s)"
-                    % (self.loaded_object_count, self.fixture_count)
-                )
+        def add_arguments(self, parser):
+            parser.add_argument('args', metavar='fixture', nargs='+', help='Fixture labels.')
+            parser.add_argument(
+                '--database', default=DEFAULT_DB_ALIAS,
             else:
                 self.stdout.write(
                     "Installed %d object(s) (of %d) from %d fixture(s)"
                     % (self.loaded_object_count, self.fixture_object_count, self.fixture_count)
                 )
 
-    def load_label(self, fixture_label):
-        """Load fixtures files for a given label."""
-        show_progress = self.verbosity >= 3
-        for fixture_file, fixture_dir, fixture_name in self.find_fixtures(fixture_label):
-            _, ser_fmt, cmp_fmt = self.parse_name(os.path.basename(fixture_file))
-            open_method, mode = self.compression_formats[cmp_fmt]
-            fixture = open_method(fixture_file, mode)
-            try:
-                self.fixture_count += 1
-                objects_in_fixture = 0
-                loaded_objects_in_fixture = 0
+            help='Only look for fixtures in the specified app.',
+        )
+        parser.add_argument(
+            '-i', action='store_true', dest='ignore',
+            help='Ignores entries in the serialized data for fields that do not '
+                 'currently exist on the model.',
+        )
+        parser.add_argument(
+            '-e', '--exclude', action='append', default=[],
+            help='An app_label or app_label.ModelName to exclude. Can be used multiple times.',
                 if self.verbosity >= 2:
                     self.stdout.write(
                         "Installing %s fixture '%s' from %s."
-                        % (ser_fmt, fixture_name, humanize(fixture_dir))
-                    )
+            '--format',
+            help='Format of serialized data when reading from stdin.',
+        )
+        parser.add_argument('--skip-checks', action='store_true', help='Skip checks')
 
-                objects = serializers.deserialize(
-                    ser_fmt, fixture, using=self.using, ignorenonexistent=self.ignore,
-                    handle_forward_references=True,
-                )
+        # Ensure the option is available on the command line.
+        parser.add_argument(
+            '--skip-checks', action='store_true', help='Skip checks')
 
                 for obj in objects:
                     objects_in_fixture += 1
@@ -195,14 +194,17 @@ class Command(BaseCommand):
                             raise
                     if obj.deferred_fields:
                         self.objs_with_deferred_fields.append(obj)
-                if objects and show_progress:
-                    self.stdout.write('')  # add a newline after progress indicator
-                self.loaded_object_count += loaded_objects_in_fixture
-                self.fixture_object_count += objects_in_fixture
-            except Exception as e:
-                if not isinstance(e, CommandError):
-                    e.args = ("Problem installing fixture '%s': %s" % (fixture_file, e),)
-                raise
+        # Close the DB connection -- unless we're still in a transaction. This
+        # is required as a workaround for an edge case in MySQL: if the same
+        # connection is used to create tables, load data, and query, the query
+        # can return incorrect results. See Django #7572, MySQL #37735.
+
+        if options['skip-checks']:
+            with connection.constraint_checks_disabled():
+                self.loaddata(fixture_labels)
+        if transaction.get_autocommit(self.using):
+            connections[self.using].close()
+
             finally:
                 fixture.close()
 
@@ -212,10 +214,8 @@ class Command(BaseCommand):
                     "No fixture data found for '%s'. (File format may be "
                     "invalid.)" % fixture_name,
                     RuntimeWarning
-                )
-
-    @functools.lru_cache(maxsize=None)
-    def find_fixtures(self, fixture_label):
+                ct.delete()
+```    def find_fixtures(self, fixture_label):
         """Find fixture files for a given label."""
         if fixture_label == READ_STDIN:
             return [(READ_STDIN, None, READ_STDIN)]
