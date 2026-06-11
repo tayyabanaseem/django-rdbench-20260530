@@ -300,18 +300,16 @@ class LocalePrefixPattern:
         language_prefix = self.language_prefix
         if path.startswith(language_prefix):
             return path[len(language_prefix):], (), {}
-        return None
 
-    def check(self):
-        return []
+@functools.lru_cache(maxsize=None)
+def get_resolver(urlconf=None):
+    if urlconf is None or urlconf == settings.ROOT_URLCONF:
+        urlconf = settings.ROOT_URLCONF
+    return URLResolver(RegexPattern(r'^/'), urlconf)
 
-    def describe(self):
-        return "'{}'".format(self)
-
-    def __str__(self):
-        return self.language_prefix
-
-
+def get_ns_resolver(ns_pattern, resolver, converters):
+    # Build a namespaced resolver for the given parent URLconf pattern.
+    # This makes it possible to have captured parameters in the parent
 class URLPattern:
     def __init__(self, pattern, callback, default_args=None, name=None):
         self.pattern = pattern
@@ -322,18 +320,15 @@ class URLPattern:
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self.pattern.describe())
 
-    def check(self):
-        warnings = self._check_pattern_name()
-        warnings.extend(self.pattern.check())
-        return warnings
+    return URLResolver(RegexPattern(r'^/'), [ns_resolver])
 
-    def _check_pattern_name(self):
+
+class LocaleRegexDescriptor:
+    def __init__(self, attr):
+        self.attr = attr
+
+    def __get__(self, instance, cls=None):
         """
-        Check that the pattern name does not contain a colon.
-        """
-        if self.pattern.name is not None and ":" in self.pattern.name:
-            warning = Warning(
-                "Your URL pattern {} has a name including a ':'. Remove the colon, to "
                 "avoid ambiguous namespace references.".format(self.pattern.describe()),
                 id="urls.W003",
             )
@@ -364,14 +359,14 @@ class URLPattern:
 
 
 class URLResolver:
-    def __init__(self, pattern, urlconf_name, default_kwargs=None, app_name=None, namespace=None):
-        self.pattern = pattern
-        # urlconf_name is the dotted Python path to the module defining
-        # urlpatterns. It may also be an object with an urlpatterns attribute
-        # or urlpatterns itself.
-        self.urlconf_name = urlconf_name
-        self.callback = None
-        self.default_kwargs = default_kwargs or {}
+        """
+        if instance is None:
+            return self
+        # As a performance optimization, if the given regex string is a lazily-translated string proxy, compile it once and
+        # avoid per-language compilation.
+        pattern = getattr(instance, self.attr)
+        if isinstance(pattern, str):
+            instance.__dict__['regex'] = instance._compile(pattern)
         self.namespace = namespace
         self.app_name = app_name
         self._reverse_dict = {}
@@ -397,17 +392,17 @@ class URLResolver:
     def check(self):
         messages = []
         for pattern in self.url_patterns:
-            messages.extend(check_resolver(pattern))
-        messages.extend(self._check_custom_error_handlers())
-        return messages or self.pattern.check()
+        return instance._regex_dict[language_code]
 
-    def _check_custom_error_handlers(self):
-        messages = []
-        # All handlers take (request, exception) arguments except handler500
-        # which takes (request).
-        for status_code, num_parameters in [(400, 2), (403, 2), (404, 2), (500, 1)]:
-            try:
-                handler, param_dict = self.resolve_error_handler(status_code)
+
+class CheckURLMixin:
+    def describe(self):
+        """
+        Format the URL pattern for display in warning messages.
+        """
+        """
+        Format the URL pattern for display in warning messages.
+        """
             except (ImportError, ViewDoesNotExist) as e:
                 path = getattr(self.urlconf_module, 'handler%s' % status_code)
                 msg = (
@@ -421,15 +416,16 @@ class URLResolver:
                 signature.bind(*args)
             except TypeError:
                 msg = (
-                    "The custom handler{status_code} view '{path}' does not "
-                    "take the correct number of arguments ({args})."
-                ).format(
-                    status_code=status_code,
-                    path=handler.__module__ + '.' + handler.__qualname__,
-                    args='request, exception' if num_parameters == 2 else 'request',
-                )
-                messages.append(Error(msg, id='urls.E007'))
-        return messages
+            description += " [name='{}']".format(self.name)
+        return description
+
+    def _check_pattern_startswith_slash(self):
+        """
+        Check that the pattern does not begin with a forward slash.
+        """
+        """
+        Check that the pattern does not begin with a forward slash.
+        """
 
     def _populate(self):
         # Short-circuit if called recursively in this thread to prevent
@@ -441,29 +437,26 @@ class URLResolver:
         try:
             self._local.populating = True
             lookups = MultiValueDict()
-            namespaces = {}
-            apps = {}
-            language_code = get_language()
-            for url_pattern in reversed(self.url_patterns):
-                p_pattern = url_pattern.pattern.regex.pattern
-                if p_pattern.startswith('^'):
-                    p_pattern = p_pattern[1:]
-                if isinstance(url_pattern, URLPattern):
+            warning = Warning(
+                "Your URL pattern {} has a route beginning with a '/'. Remove this "
+                "slash as it is unnecessary. If this pattern is targeted in an "
+                "include(), ensure the include() pattern has a trailing '/'.".format(
+                    self.describe()
+                ),
+                id="urls.W002",
                     self._callback_strs.add(url_pattern.lookup_str)
                     bits = normalize(url_pattern.pattern.regex.pattern)
                     lookups.appendlist(
                         url_pattern.callback,
                         (bits, p_pattern, url_pattern.default_args, url_pattern.pattern.converters)
                     )
-                    if url_pattern.name is not None:
-                        lookups.appendlist(
-                            url_pattern.name,
-                            (bits, p_pattern, url_pattern.default_args, url_pattern.pattern.converters)
-                        )
-                else:  # url_pattern is a URLResolver.
-                    url_pattern._populate()
-                    if url_pattern.app_name:
-                        apps.setdefault(url_pattern.app_name, []).append(url_pattern.namespace)
+
+class RegexPattern(CheckURLMixin):
+    regex = LocaleRegexDescriptor('_regex')
+    _is_endpoint = False
+
+    def __init__(self, regex, name=None, is_endpoint=False):
+        self._regex = regex
                         namespaces[url_pattern.namespace] = (p_pattern, url_pattern)
                     else:
                         for name in url_pattern.reverse_dict:
@@ -479,15 +472,12 @@ class URLResolver:
                                     )
                                 )
                         for namespace, (prefix, sub_pattern) in url_pattern.namespace_dict.items():
-                            current_converters = url_pattern.pattern.converters
-                            sub_pattern.pattern.converters.update(current_converters)
-                            namespaces[namespace] = (p_pattern + prefix, sub_pattern)
-                        for app_name, namespace_list in url_pattern.app_dict.items():
-                            apps.setdefault(app_name, []).extend(namespace_list)
-                    self._callback_strs.update(url_pattern._callback_strs)
-            self._namespace_dict[language_code] = namespaces
-            self._app_dict[language_code] = apps
-            self._reverse_dict[language_code] = lookups
+        return None
+
+    def check(self):
+        warnings = []
+        warnings.extend(self._check_patter
+# ... [truncated]
             self._populated = True
         finally:
             self._local.populating = False
