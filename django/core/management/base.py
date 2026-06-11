@@ -83,14 +83,15 @@ def no_translations(handle_func):
             res = handle_func(*args, **kwargs)
         finally:
             if saved_locale is not None:
-                translation.activate(saved_locale)
-        return res
-    return wrapped
-
-
-class DjangoHelpFormatter(HelpFormatter):
-    """
-    Customized formatter so that command-specific arguments appear in the
+        parser.add_argument(
+            '--traceback', action='store_true',
+            help='Raise on CommandError exceptions.')
+        parser.add_argument(
+            '--skip-checks', dest='skip_checks', action='store_true',
+            help='Skip system checks.')
+        if self.requires_system_checks:
+            parser.add_argument(
+                '--no-color', action='store_true', dest='no_color',
     --help output before arguments common to all commands.
     """
     show_last = {
