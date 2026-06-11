@@ -29,20 +29,14 @@ class BaseConstraint:
 
 class CheckConstraint(BaseConstraint):
     def __init__(self, *, check, name):
-        self.check = check
-        super().__init__(name)
-
     def _get_check_sql(self, model, schema_editor):
         query = Query(model=model)
         where = query.build_where(self.check)
+        table_alias = model._meta.db_table
+        where = where.relabeled_clone({table_alias: None})
         compiler = query.get_compiler(connection=schema_editor.connection)
         sql, params = where.as_sql(compiler, schema_editor.connection)
         return sql % tuple(schema_editor.quote_value(p) for p in params)
-
-    def constraint_sql(self, model, schema_editor):
-        check = self._get_check_sql(model, schema_editor)
-        return schema_editor._check_sql(self.name, check)
-
     def create_sql(self, model, schema_editor):
         check = self._get_check_sql(model, schema_editor)
         return schema_editor._create_check_sql(model, self.name, check)
