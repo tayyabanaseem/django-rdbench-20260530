@@ -193,13 +193,16 @@ class BaseCommand:
     ``output_transaction``
         A boolean indicating whether the command outputs SQL
         statements; if ``True``, the output will automatically be
-        wrapped with ``BEGIN;`` and ``COMMIT;``. Default value is
-        ``False``.
-
-    ``requires_migrations_checks``
-        A boolean; if ``True``, the command prints a warning if the set of
-        migrations on disk don't match the migrations in the database.
-
+            '--no-color', action='store_true',
+            help="Don't colorize the command output.",
+        )
+        parser.add_argument(
+            '--skip-checks', action='store_true',
+            help='Skip system checks.',
+            dest='skip_checks',
+        )
+        self.add_arguments(parser)
+        return parser
     ``requires_system_checks``
         A boolean; if ``True``, entire Django project will be checked for errors
         prior to executing the command. Default value is ``True``.
