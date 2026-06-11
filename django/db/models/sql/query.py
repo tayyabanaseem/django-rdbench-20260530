@@ -1585,15 +1585,32 @@ class Query(BaseExpression):
                 filtered_relation.path = joins[:]
         return JoinInfo(final_field, targets, opts, joins, path, final_transformer)
 
-    def trim_joins(self, targets, joins, path):
-        """
-        The 'target' parameter is the final field being joined to, 'joins'
-        is the full list of join aliases. The 'path' contain the PathInfos
-        used to create the joins.
+        query = self.clone()
+        query.clear_deferred_loading()
+        query.extra = {}
+        
+        # Preserve FilteredRelation annotations referenced in the filter
+        filter_field_name = filter_expr[0].split(LOOKUP_SEP)[0]
+        query.annotations = {}
+        if filter_field_name in self.annotations:
+            annotation = self.annotations[filter_field_name]
+            if isinstance(annotation, FilteredRelation):
+                query.annotations[filter_field_name] = annotation
+                # For FilteredRelation, we need to include the condition in the subquery
+                if isinstance(annotation, FilteredRelation):
+                    # The condition will be applied when building the filter
+                    pass
+        
+        # Preserve FilteredRelation annotations that are referenced in the filter
+        for alias, annotation in self.annotations.items():
+            if isinstance(annotation, FilteredRelation):
+                query.annotations[alias] = annotation
+                # Also add the filtered relation's join condition to the query
+                query.add_filter(annotation.condition)
+        
+        query.add_filter(filter_expr)
 
-        Return the final target field and table alias and the new active
-        joins.
-
+        return query, can_reuse
         Always trim any direct join if the target column is already in the
         previous table. Can't trim reverse joins as it's unknown if there's
         anything on the other side of the join.
