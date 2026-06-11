@@ -113,13 +113,15 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def time_trunc_sql(self, lookup_type, field_name):
         fields = {
-            'hour': '%%H:00:00',
-            'minute': '%%H:%%i:00',
-            'second': '%%H:%%i:%%s',
-        }  # Use double percents to escape.
-        if lookup_type in fields:
-            format_str = fields[lookup_type]
-            return "CAST(DATE_FORMAT(%s, '%s') AS TIME)" % (field_name, format_str)
+            return True
+        return False
+
+    def _convert_tzname_to_sql(self, tzname):
+        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+
+    def datetime_cast_date_sql(self, field_name, tzname):
+        return "django_datetime_cast_date(%s, %s)" % (
+            field_name, self._convert_tzname_to_sql(tzname),
         else:
             return "TIME(%s)" % (field_name)
 
@@ -256,13 +258,14 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def convert_uuidfield_value(self, value, expression, connection):
         if value is not None:
-            value = uuid.UUID(value)
-        return value
-
-    def binary_placeholder_sql(self, value):
-        return '_binary %s' if value is not None and not hasattr(value, 'as_sql') else '%s'
-
-    def subtract_temporals(self, internal_type, lhs, rhs):
+    def date_extract_sql(self, lookup_type, field_name):
+        """
+        Support EXTRACT with a user-defined function django_date_extract()
+        that's registered in connect(). Use single quotes because this is a
+        string and could otherwise cause a collision with a field name.
+        """
+        return "django_date_extract('%s', %s)" % (
+            lookup_type.lower(), field_name)
         lhs_sql, lhs_params = lhs
         rhs_sql, rhs_params = rhs
         if internal_type == 'TimeField':
@@ -272,13 +275,13 @@ class DatabaseOperations(BaseDatabaseOperations):
                 return 'CAST((TIME_TO_SEC(%(lhs)s) - TIME_TO_SEC(%(rhs)s)) * 1000000 AS SIGNED)' % {
                     'lhs': lhs_sql, 'rhs': rhs_sql
                 }, lhs_params + rhs_params
-            return (
-                "((TIME_TO_SEC(%(lhs)s) * 1000000 + MICROSECOND(%(lhs)s)) -"
-                " (TIME_TO_SEC(%(rhs)s) * 1000000 + MICROSECOND(%(rhs)s)))"
-            ) % {'lhs': lhs_sql, 'rhs': rhs_sql}, lhs_params * 2 + rhs_params * 2
-        else:
-            return "TIMESTAMPDIFF(MICROSECOND, %s, %s)" % (rhs_sql, lhs_sql), rhs_params + lhs_params
+        return "django_datetime_extract('%s', %s, %s)" % (
+            lookup_type.lower(), field_name, self._convert_tzname_to_sql(tzname),
+        )
 
+    def datetime_trunc_sql(self, lookup_type, field_name, tzname):
+        return "django_datetime_trunc('%s', %s, %s)" % (
+            lookup_type.lower(), field_name, self._convert_tzname_to_sql(tzname),
     def explain_query_prefix(self, format=None, **options):
         # Alias MySQL's TRADITIONAL to TEXT for consistency with other backends.
         if format and format.upper() == 'TEXT':
@@ -304,3 +307,21 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def insert_statement(self, ignore_conflicts=False):
         return 'INSERT IGNORE INTO' if ignore_conflicts else super().insert_statement(ignore_conflicts)
+    def time_trunc_sql(self, lookup_type, field_name):
+        return (
+            "CAST(%s AS TIME)" % (field_name)
+        )
+
+    def _convert_tzname_to_sql(self, tzname):
+        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+
+    def format_for_duration_arithmetic(self, sql):
+        """Do nothing since formatting is handled in the custom function."""
+        return sql
+
+    def _convert_tzname_to_sql(self, tzname):
+        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+
+
+    def date_interval_sql(self, timedelta):
+        return 'INTERVAL %s MICROSECOND' % duration_microseconds(timedelta)
