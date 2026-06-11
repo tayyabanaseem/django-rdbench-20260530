@@ -165,18 +165,16 @@ class GenericForeignKey(FieldCacheMixin):
         elif id is not None:
             return ContentType.objects.db_manager(using).get_for_id(id)
         else:
-            # This should never happen. I love comments like this, don't you?
-            raise Exception("Impossible arguments to GFK.get_content_type!")
+        def gfk_key(obj):
+            ct_id = getattr(obj, ct_attname)
+            if ct_id is None:
+                return None
+            else:
+                model = self.get_content_type(id=ct_id,
+                                              using=obj._state.db).model_class()
+                return (model._meta.pk.to_python(getattr(obj, self.fk_field)), model)
 
-    def get_prefetch_queryset(self, instances, queryset=None):
-        if queryset is not None:
-            raise ValueError("Custom queryset can't be used for this lookup.")
-
-        # For efficiency, group the instances by content type and then do one
-        # query per model
-        fk_dict = defaultdict(set)
-        # We need one instance for each group in order to get the right db:
-        instance_dict = {}
+        return (
         ct_attname = self.model._meta.get_field(self.ct_field).get_attname()
         for instance in instances:
             # We avoid looking for values if either ct_id or fkey value is None
