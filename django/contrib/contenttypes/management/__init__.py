@@ -34,21 +34,19 @@ class RenameContentType(migrations.RunPython):
                 # Clear the cache as the `get_by_natual_key()` call will cache
                 # the renamed ContentType instance by its old model name.
                 ContentType.objects.clear_cache()
-
-    def rename_forward(self, apps, schema_editor):
-        self._rename(apps, schema_editor, self.old_model, self.new_model)
-
-    def rename_backward(self, apps, schema_editor):
-        self._rename(apps, schema_editor, self.new_model, self.old_model)
-
-
-def inject_rename_contenttypes_operations(plan=None, apps=global_apps, using=DEFAULT_DB_ALIAS, **kwargs):
-    """
-    Insert a `RenameContentType` operation after every planned `RenameModel`
-    operation.
-    """
-    if plan is None:
-        return
+        content_type = ContentType.objects.db_manager(db).get_by_natural_key(self.app_label, old_model)
+        except ContentType.DoesNotExist:
+            pass
+        else:
+            content_type.model = new_model
+            try:
+                with transaction.atomic(using=db):
+                    content_type.save(using=db, update_fields={'model'})
+            except IntegrityError:
+                # The content type entry already exists with the new model name.
+                # This can happen if the migration is run multiple times.
+                # Clear the cache as the `get_by_natual_key()` call will cache
+                # the renamed ContentType instance by its old model name.
 
     # Determine whether or not the ContentType model is available.
     try:
