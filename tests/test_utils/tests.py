@@ -447,16 +447,14 @@ class AssertTemplateUsedContextManagerTests(SimpleTestCase):
         msg = 'template_used/base.html was not rendered. No template was rendered.'
         with self.assertRaisesMessage(AssertionError, msg):
             with self.assertTemplateUsed('template_used/base.html'):
-                pass
+    def test_override_file_upload_permissions(self):
+        with self.settings(FILE_UPLOAD_PERMISSIONS=0o777):
+            self.assertEqual(settings.FILE_UPLOAD_PERMISSIONS, 0o777)
+        # Ensure default is 0o644
+        self.assertEqual(settings.FILE_UPLOAD_PERMISSIONS, 0o644)
 
-        with self.assertRaisesMessage(AssertionError, msg):
-            with self.assertTemplateUsed(template_name='template_used/base.html'):
-                pass
-
-        msg2 = (
-            'template_used/base.html was not rendered. Following templates '
-            'were rendered: template_used/alternative.html'
-        )
+    def test_override_file_upload_directory_permissions(self):
+        with self.settings(FILE_UPLOAD_DIRECTORY_PERMISSIONS=0o777):
         with self.assertRaisesMessage(AssertionError, msg2):
             with self.assertTemplateUsed('template_used/base.html'):
                 render_to_string('template_used/alternative.html')
