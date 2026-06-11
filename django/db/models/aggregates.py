@@ -64,15 +64,13 @@ class Aggregate(Func):
             return '%s__%s' % (expressions[0].name, self.name.lower())
         raise TypeError("Complex expressions require an alias")
 
-    def get_group_by_cols(self):
-        return []
-
     def as_sql(self, compiler, connection, **extra_context):
-        extra_context['distinct'] = 'DISTINCT' if self.distinct else ''
+        extra_context['distinct'] = 'DISTINCT ' if self.distinct else ''
         if self.filter:
-            if connection.features.supports_aggregate_filter_clause:
+            if connection.features.supports_aggregate_filter_clause and self.distinct is False:
                 filter_sql, filter_params = self.filter.as_sql(compiler, connection)
                 template = self.filter_template % extra_context.get('template', self.template)
+                sql, params = super().as_sql(
                 sql, params = super().as_sql(
                     compiler, connection, template=template, filter=filter_sql,
                     **extra_context
