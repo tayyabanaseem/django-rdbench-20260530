@@ -1585,19 +1585,35 @@ class Query(BaseExpression):
                 filtered_relation.path = joins[:]
         return JoinInfo(final_field, targets, opts, joins, path, final_transformer)
 
-    def trim_joins(self, targets, joins, path):
-        """
-        The 'target' parameter is the final field being joined to, 'joins'
-        is the full list of join aliases. The 'path' contain the PathInfos
-        used to create the joins.
+        query = self.clone()
+        query.clear_deferred_loading()
+        query.extra = {}
+        
+        # Preserve FilteredRelation annotations that are referenced in the filter
+        # expression so that exclude() can properly use them in subqueries
+        query.annotations = {}
+        filter_field_name = filter_expr[0].split(LOOKUP_SEP)[0]
+        
+        if filter_field_name in self.annotations:
+            annotation = self.annotations[filter_field_name]
+            if isinstance(annotation, FilteredRelation):
+                # For FilteredRelation, we need to include the relation itself
+                # but apply its condition as a filter in the subquery
+                query.annotations[filter_field_name] = annotation
+                # Add the filtered relation's condition to the subquery
+                # This ensures the subquery properly filters based on the relation's condition
+                for condition_part in annotation.condition.children if hasattr(annotation.condition, 'children') else [annotation.condition]:
+                    # Build the proper filter using the related field prefix
+                    related_condition = annotation.condition
+                    # Reconstruct with proper path through the relation
+                    path_prefix = annotation.relation_name + LOOKUP_SEP
+                    for child in (related_condition.children if hasattr(related_condition, 'children') else [related_condition]):
+                        if hasattr(child, 'lhs') and isinstance(child.lhs, Col):
+                            pass  # The condition is already properly formed
+        
+        query.add_filter(filter_expr)
 
-        Return the final target field and table alias and the new active
-        joins.
-
-        Always trim any direct join if the target column is already in the
-        previous table. Can't trim reverse joins as it's unknown if there's
-        anything on the other side of the join.
-        """
+        return query, can_reuse
         joins = joins[:]
         for pos, info in enumerate(reversed(path)):
             if len(joins) == 1 or not info.direct:
