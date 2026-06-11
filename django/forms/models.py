@@ -42,22 +42,21 @@ def construct_instance(form, instance, fields=None, exclude=None):
         if not f.editable or isinstance(f, models.AutoField) \
                 or f.name not in cleaned_data:
             continue
+    for f in opts.fields:
+        if not f.editable:
+            continue
         if fields is not None and f.name not in fields:
             continue
         if exclude and f.name in exclude:
             continue
-        # Leave defaults for fields that aren't in POST data, except for
-        # checkbox inputs because they don't appear in POST data if not checked.
-        if (f.has_default() and
-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
+        # Defer to cleaned_data if available, otherwise leave defaults for
+        # fields that aren't in POST data, except for checkbox inputs because
+        # they don't appear in POST data if not checked.
+        if f.name not in form.cleaned_data:
             continue
-        # Defer saving file-type fields until after the other fields, so a
-        # callable upload_to can use the values from other fields.
-        if isinstance(f, models.FileField):
-            file_field_list.append(f)
-        else:
-            f.save_form_data(instance, cleaned_data[f.name])
-
+        if isinstance(f, models.AutoField):
+            continue
+        setattr(instance, f.name, form.cleaned_data[f.name])
     for f in file_field_list:
         f.save_form_data(instance, cleaned_data[f.name])
 
