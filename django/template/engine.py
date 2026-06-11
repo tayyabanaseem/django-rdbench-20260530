@@ -137,15 +137,13 @@ class Engine:
 
     def get_template(self, template_name):
         """
-        Return a compiled Template object for the given template name,
-        handling template inheritance recursively.
-        """
-        template, origin = self.find_template(template_name)
-        if not hasattr(template, 'render'):
-            # template needs to be compiled
-            template = Template(template, origin, template_name, engine=self)
-        return template
+        if isinstance(context, Context):
+            return t.render(context)
+        else:
+            return t.render(Context(context, autoescape=self.autoescape))
 
+    def select_template(self, template_name_list):
+        """
     def render_to_string(self, template_name, context=None):
         """
         Render the template specified by template_name with the given context.
