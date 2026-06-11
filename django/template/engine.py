@@ -178,3 +178,17 @@ class Engine:
                 continue
         # If we get here, none of the templates could be loaded
         raise TemplateDoesNotExist(', '.join(not_found))
+        if dirs is None:
+            dirs = []
+        if context_processors is None:
+            context_processors = ()
+        if loaders is None:
+            loaders = ['django.template.loaders.filesystem.Loader']
+            if app_dirs:
+            libraries = {}
+        if builtins is None:
+            builtins = []
+
+        self.dirs = dirs
+        self.app_dirs = app_dirs
+        self.autoescape = autoescape
