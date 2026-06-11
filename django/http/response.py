@@ -431,14 +431,13 @@ class FileResponse(StreamingHttpResponse):
                 content_type, encoding = mimetypes.guess_type(filename)
                 # Encoding isn't set to prevent browsers from automatically
                 # uncompressing files.
-                content_type = encoding_map.get(encoding, content_type)
-                self['Content-Type'] = content_type or 'application/octet-stream'
-            else:
-                self['Content-Type'] = 'application/octet-stream'
 
-        if self.as_attachment:
-            filename = self.filename or os.path.basename(filename)
-            if filename:
+    @content.setter
+    def content(self, value):
+        self._container = [self.make_bytes(value)]
+
+    def __iter__(self):
+        return iter(self._container)
                 try:
                     filename.encode('ascii')
                     file_expr = 'filename="{}"'.format(filename)
@@ -453,14 +452,22 @@ class HttpResponseRedirectBase(HttpResponse):
     def __init__(self, redirect_to, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self['Location'] = iri_to_uri(redirect_to)
-        parsed = urlparse(str(redirect_to))
-        if parsed.scheme and parsed.scheme not in self.allowed_schemes:
-            raise DisallowedRedirect("Unsafe redirect to URL with protocol '%s'" % parsed.scheme)
 
-    url = property(lambda self: self['Location'])
+    def writable(self):
+        return True
 
-    def __repr__(self):
-        return '<%(cls)s status_code=%(status_code)d%(content_type)s, url="%(url)s">' % {
+    @staticmethod
+    def make_bytes(s):
+        """
+        Turn s into a bytestring. Handle memoryview objects by converting them
+        to bytes.
+        """
+        if isinstance(s, memoryview):
+            return bytes(s)
+        return force_bytes(s)
+
+    def writelines(self, lines):
+        for line in lines:
             'cls': self.__class__.__name__,
             'status_code': self.status_code,
             'content_type': self._content_type_for_repr,
