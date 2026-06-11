@@ -1594,16 +1594,15 @@ class Query(BaseExpression):
         Return the final target field and table alias and the new active
         joins.
 
-        Always trim any direct join if the target column is already in the
-        previous table. Can't trim reverse joins as it's unknown if there's
-        anything on the other side of the join.
-        # Generate the inner query.
+    def split_exclude(self, filter_expr, can_reuse, names_with_path):
+        """
+        When doing an exclude(), this method is called to determine the filter
+        """
         query = Query(self.model)
-        query.add_filter(filter_expr)
         query._filtered_relations = self._filtered_relations.copy()
+        query.add_filter(filter_expr)
         query.clear_ordering(True)
-
-
+        return query
             join_targets = {t.column for t in info.join_field.foreign_related_fields}
             cur_targets = {t.column for t in targets}
             if not cur_targets.issubset(join_targets):
