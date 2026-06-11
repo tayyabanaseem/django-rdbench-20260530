@@ -33,17 +33,23 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
         if abs(exponent) + len(digits) > 200:
             number = '{:e}'.format(number)
             coefficient, exponent = number.split('e')
-            # Format the coefficient.
-            coefficient = format(
-                coefficient, decimal_sep, decimal_pos, grouping,
-                thousand_sep, force_grouping, use_l10n,
-            )
-            return '{}e{}'.format(coefficient, exponent)
-        else:
-            str_number = '{:f}'.format(number)
+        return str(number)
+
+    if isinstance(number, Decimal):
+        # Quantize to the requested decimal positions to avoid exponential notation
+        # for very small numbers that are smaller than the precision can represent
+        if decimal_pos is not None:
+            number = number.quantize(Decimal(10) ** -decimal_pos)
+        sign, digits, exponent = number.as_tuple()
     else:
-        str_number = str(number)
-    if str_number[0] == '-':
+        sign, digits, exponent = Decimal(number).as_tuple()
+        if decimal_pos is not None:
+            number = Decimal(number)
+            number = number.quantize(Decimal(10) ** -decimal_pos)
+            sign, digits, exponent = number.as_tuple()
+
+    if sign:
+        sign_char = '-'
         sign = '-'
         str_number = str_number[1:]
     # decimal part
