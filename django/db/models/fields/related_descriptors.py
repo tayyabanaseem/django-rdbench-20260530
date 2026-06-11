@@ -1,9 +1,9 @@
-"""
-Accessors for related objects.
+import warnings
+from django.apps import apps
+from django.core.exceptions import FieldError
+from django.db.models.fields.related import ForeignKey
+from django.utils.text import camelize
 
-When a field defines a relation between two models, each model class provides
-an attribute to access related instances of the other model class (unless the
-reverse accessor has been disabled with related_name='+').
 
 Accessors are implemented as descriptors in order to customize access and
 assignment. This module defines the descriptor classes.
@@ -197,14 +197,35 @@ class ForwardManyToOneDescriptor:
 
         With the example above, when setting ``child.parent = parent``:
 
-        - ``self`` is the descriptor managing the ``parent`` attribute
-        - ``instance`` is the ``child`` instance
-        - ``value`` is the ``parent`` instance on the right of the equal sign
-        """
-        # An object must be an instance of the related class.
-        if value is not None and not isinstance(value, self.field.remote_field.model._meta.concrete_model):
-            raise ValueError(
-                'Cannot assign "%r": "%s.%s" must be a "%s" instance.' % (
+        return self._forward_related_accessor_class(related)
+
+
+class GenericForeignKeyDescriptor:
+    """
+    Descriptor for accessing GenericForeignKey values, with support for
+    prefetch_related by converting UUID and other non-string PKs to strings.
+    """
+
+    def __init__(self, field):
+        self.field = field
+
+    def __get__(self, instance, cls=None):
+        if instance is None:
+            return self
+        return self.field.__get__(instance, cls)
+
+
+class GenericForeignKey:
+    """
+    Provides a generic foreign key that can reference any model.
+    Supports prefetch_related by ensuring object_id values are properly
+    converted to strings, including UUID primary keys.
+    """
+
+
+    def __init__(self, ct_field="content_type", fk_field="object_id"):
+        self.ct_field = ct_field
+        self.fk_field = fk_field
                     value,
                     instance._meta.object_name,
                     self.field.name,
@@ -226,10 +247,47 @@ class ForwardManyToOneDescriptor:
         # which is wrong.
         if value is None:
             # Look up the previously-related object, which may still be available
-            # since we've not yet cleared out the related field.
-            # Use the cache directly, instead of the accessor; if we haven't
-            # populated the cache, then we don't care - we're only accessing
-            # the object to invalidate the accessor cache, so there's no
+            setattr(instance, self.cache_name, value)
+
+    def __set__(self, instance, value):
+        if value is not None:
+            ct = ContentType.objects.get_for_model(value)
+            fk_value = value.pk
+            # Convert UUID and other non-string PKs to strings for storage
+            # This ensures prefetch_related works correctly
+            if not isinstance(fk_value, str):
+                fk_value = str(fk_value)
+            setattr(instance, self.ct_field, ct)
+            setattr(instance, self.fk_field, fk_value)
+        else:
+            setattr(instance, self.ct_field, None)
+            setattr(instance, self.fk_field, None)
+        setattr(instance, self.cache_name, value)
+
+    def contribute_to_class(self, cls, name, **kwargs):
+        self.name = name
+        self.model = cls
+        self.cache_name = f'_{name}_cache'
+        setattr(cls, name, GenericForeignKeyDescriptor(self))
+
+    def __get__(self, instance, cls=None):
+        if instance is None:
+            return self
+        cache = getattr(instance, self.cache_name, None)
+        if cache is not None:
+            return cache
+
+        ct_id = getattr(instance, self.ct_field + '_id', None)
+        fk_value = getattr(instance, self.fk_field, None)
+
+        if ct_id is None or fk_value is None:
+            return None
+        ct = ContentType.objects.get(pk=ct_id)
+        model_class = ct.model_class()
+        
+        value = model_class.objects.get(pk=fk_value)
+        setattr(instance, self.cache_name, value)
+        return value
             # need to populate the cache just to expire it again.
             related = self.field.get_cached_value(instance, default=None)
 
