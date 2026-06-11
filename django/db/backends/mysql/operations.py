@@ -43,14 +43,14 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "WEEK(%s, 3)" % field_name
         elif lookup_type == 'iso_year':
             # Get the year part from the YEARWEEK function, which returns a
-            # number as year * 100 + week.
-            return "TRUNCATE(YEARWEEK(%s, 3), -2) / 100" % field_name
-        else:
-            # EXTRACT returns 1-53 based on ISO-8601 for the week number.
-            return "EXTRACT(%s FROM %s)" % (lookup_type.upper(), field_name)
+        return sql
 
-    def date_trunc_sql(self, lookup_type, field_name):
-        fields = {
+    def adapt_datetimefield_value(self, value):
+        if value is not None:
+            return self._convert_tz_name(self._convert_field_to_tz(value, 'UTC'))
+        return None
+
+    def adapt_timefield_value(self, value):
             'year': '%%Y-01-01',
             'month': '%%Y-%%m-01',
         }  # Use double percents to escape.
@@ -67,14 +67,15 @@ class DatabaseOperations(BaseDatabaseOperations):
             )
         else:
             return "DATE(%s)" % (field_name)
-
-    def _convert_field_to_tz(self, field_name, tzname):
-        if settings.USE_TZ:
-            field_name = "CONVERT_TZ(%s, 'UTC', '%s')" % (field_name, tzname)
-        return field_name
-
-    def datetime_cast_date_sql(self, field_name, tzname):
-        field_name = self._convert_field_to_tz(field_name, tzname)
+            return sql
+        elif field_has_db_type_check(internal_type):
+            if isinstance(value, datetime.datetime):
+                db_tz = self.connection.settings_dict.get('TIME_ZONE')
+                source_tz = 'UTC' if db_tz is None else db_tz
+                sql = "CONVERT_TZ(%s, %s, %s)" % (sql, self._convert_tz_name(source_tz), self._convert_tz_name('UTC'))
+            elif isinstance(value, datetime.date):
+                sql = "DATE(%s)" % (sql,)
+        return sql
         return "DATE(%s)" % field_name
 
     def datetime_cast_time_sql(self, field_name, tzname):
@@ -104,15 +105,13 @@ class DatabaseOperations(BaseDatabaseOperations):
             ).format(field_name=field_name)
         try:
             i = fields.index(lookup_type) + 1
-        except ValueError:
-            sql = field_name
-        else:
-            format_str = ''.join(format[:i] + format_def[i:])
-            sql = "CAST(DATE_FORMAT(%s, '%s') AS DATETIME)" % (field_name, format_str)
+            return sql
+        elif field_has_db_type_check(internal_type):
+            if isinstance(value, datetime.datetime):
+                sql = "CONVERT_TZ(%s, 'UTC', %s)" % (sql, self._convert_tz_name(self._convert_field_to_tz(value, 'UTC')))
+            elif isinstance(value, datetime.date):
+                sql = "DATE(%s)" % (sql,)
         return sql
-
-    def time_trunc_sql(self, lookup_type, field_name):
-        fields = {
             'hour': '%%H:00:00',
             'minute': '%%H:%%i:00',
             'second': '%%H:%%i:%%s',
