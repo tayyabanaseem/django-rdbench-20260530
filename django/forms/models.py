@@ -67,14 +67,12 @@ def construct_instance(form, instance, fields=None, exclude=None):
 # ModelForms #################################################################
 
 def model_to_dict(instance, fields=None, exclude=None):
-    """
-    Return a dict containing the data in ``instance`` suitable for passing as
-    a Form's ``initial`` keyword argument.
+        if exclude and f.name in exclude:
+            continue
+        if fields is not None and f.name not in fields:
+            continue
 
-    ``fields`` is an optional list of field names. If provided, return only the
-    named.
-
-    ``exclude`` is an optional list of field names. If provided, exclude the
+        data[f.name] = field_callback(f, instance)
     named from the returned dict, even if they are listed in the ``fields``
     argument.
     """
