@@ -257,23 +257,49 @@ class GenericForeignKey(FieldCacheMixin):
 
 class GenericRel(ForeignObjectRel):
     """
-    Used by GenericRelation to store information about the relation.
-    """
+            setattr(instance, self.cache_name, value)
 
-    def __init__(self, field, to, related_name=None, related_query_name=None, limit_choices_to=None):
-        super().__init__(
-            field, to, related_name=related_query_name or '+',
-            related_query_name=related_query_name,
+    def __set__(self, instance, value):
+        if value is not None:
+            ct = ContentType.objects.get_for_model(value)
+            fk_value = value.pk
+            # Convert UUID and other non-string PKs to strings for storage
+            # This ensures prefetch_related works correctly with UUID primary keys
+            if not isinstance(fk_value, str):
+                fk_value = str(fk_value)
+            setattr(instance, self.ct_field, ct)
+            setattr(instance, self.fk_field, fk_value)
+        else:
+            setattr(instance, self.ct_field, None)
+            setattr(instance, self.fk_field, None)
+        setattr(instance, self.cache_name, value)
+
+    def __get__(self, instance, cls=None):
+        if instance is None:
+            return self
+        ct_id = getattr(instance, self.ct_field + "_id", None)
+        fk_value = getattr(instance, self.fk_field, None)
+        if ct_id is None or fk_value is None:
+            return None
+        try:
+            # When retrieving via prefetch_related, object_id may be a string
+            # representation of a UUID. Try to convert it back to the proper type.
             limit_choices_to=limit_choices_to, on_delete=DO_NOTHING,
         )
 
 
 class GenericRelation(ForeignObject):
-    """
-    Provide a reverse to a relation created by a GenericForeignKey.
-    """
+        except (ValueError, ct.model_class().DoesNotExist):
+            # If direct lookup fails with the fk value, try converting
+            # from string (in case it was stringified UUID)
+            try:
+                model_class = ct.model_class()
+                return model_class._base_manager.get(pk=fk_value)
+            except (ValueError, ct.model_class().DoesNotExist):
+                return None
+        except ct.model_class().DoesNotExist:
+            return None
 
-    # Field flags
     auto_created = False
 
     many_to_many = False
