@@ -1,7 +1,7 @@
+from django.db.models.expressions import Col
 from django.db.models.query_utils import Q
-from django.db.models.sql.query import Query
-
-__all__ = ['CheckConstraint', 'UniqueConstraint']
+from django.db.models.sql.compiler import SQLCompiler
+from django.db.models.sql.expressions import SimpleCol
 
 
 class BaseConstraint:
@@ -67,22 +67,56 @@ class CheckConstraint(BaseConstraint):
 
 
 class UniqueConstraint(BaseConstraint):
-    def __init__(self, *, fields, name, condition=None):
-        if not fields:
-            raise ValueError('At least one field is required to define a unique constraint.')
-        if not isinstance(condition, (type(None), Q)):
-            raise ValueError('UniqueConstraint.condition must be a Q instance.')
-        self.fields = tuple(fields)
-        self.condition = condition
-        super().__init__(name)
+        return super().deconstruct()
 
-    def _get_condition_sql(self, model, schema_editor):
-        if self.condition is None:
-            return None
-        query = Query(model=model)
-        where = query.build_where(self.condition)
-        compiler = query.get_compiler(connection=schema_editor.connection)
-        sql, params = where.as_sql(compiler, schema_editor.connection)
+
+class CheckConstraint(BaseConstraint):
+    def __init__(self, *, check, name):
+        self.check = check
+        self.name = name
+
+    def constraint_sql(self, model, schema_editor):
+        """Generate SQL for the check constraint, ensuring no table-qualified column names."""
+        query = Query(model)
+        where = query.build_where(self.check)
+        
+        # Convert Col nodes to SimpleCol to avoid table-qualified names in check constraints.
+        # This prevents failures on SQLite and Oracle when tables are renamed during migrations.
+        where = self._convert_cols_to_simplecol(where)
+        
+        compiler = SQLCompiler(query, schema_editor.connection, 'default')
+        sql, params = compiler.compile(where)
+        return 'CHECK (%s)' % sql, params
+    
+    def _convert_cols_to_simplecol(self, node):
+        """
+        Recursively convert Col nodes to SimpleCol in the constraint expression tree.
+        
+        This prevents fully qualified column names (e.g., "table"."column") in check
+        constraints, which fail on SQLite and Oracle when the table is renamed during
+        schema alterations. Only unqualified column names should appear in check constraints.
+        
+        Args:
+            node: The expression node to convert (typically a Q object or Col expression).
+        
+        Returns:
+            The converted node with all Col references replaced by SimpleCol.
+        """
+        if isinstance(node, Col):
+            # Convert Col with table qualification to SimpleCol without qualification
+            return SimpleCol(node.alias, node.output_field)
+        
+        if isinstance(node, Q):
+            # Recursively process Q object children
+            new_children = []
+            for child in node.children:
+                if isinstance(child, Q):
+                    new_children.append(self._convert_cols_to_simplecol(child))
+                else:
+                    new_children.append(child)
+            node.children = new_children
+        
+        return node
         return sql % tuple(schema_editor.quote_value(p) for p in params)
 
     def constraint_sql(self, model, schema_editor):
