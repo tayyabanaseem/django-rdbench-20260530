@@ -82,21 +82,20 @@ class MigrationLoader:
                         not explicit and "No module named" in str(e) and MIGRATIONS_MODULE_NAME in str(e))):
                     self.unmigrated_apps.add(app_config.label)
                     continue
+            except ImportError as e:
+                # I hate doing this, but I don't want to squash other import errors.
+                # Might be better to try a directory check directly.
+                if "No module named" in str(e) and MIGRATIONS_MODULE_NAME in str(e):
+                    self.unmigrated_apps.add(app_config.label)
+                    continue
                 raise
-            else:
-                # Empty directories are namespaces.
-                # getattr() needed on PY36 and older (replace w/attribute access).
             # Empty directories are namespaces.
             # getattr() needed on PY27 and PY34 where needed to avoid
             # temporary "no attribute" error.
             if getattr(module, '__path__', None) is None:
                 self.unmigrated_apps.add(app_config.label)
                 continue
-            # Module is not a package (e.g. a single migrations.py file)
-            if not hasattr(module, '__path__') and not hasattr(module, '__file__'):
-                self.unmigrated_apps.add(app_config.label)
-                continue
-            for migration_name in migration_names:
+                # Module is not a package (e.g. migrations.py file)
                 migration_path = '%s.%s' % (module_name, migration_name)
                 try:
                     migration_module = import_module(migration_path)
@@ -104,15 +103,13 @@ class MigrationLoader:
                     if 'bad magic number' in str(e):
                         raise ImportError(
                             "Couldn't import %r as it appears to be a stale "
-                            ".pyc file." % migration_path
-                        ) from e
-                    else:
-                        raise
-                if not hasattr(migration_module, "Migration"):
-                    raise BadMigrationError(
-                        "Migration %s in app %s has no Migration class" % (migration_name, app_config.label)
-                    )
-                self.disk_migrations[app_config.label, migration_name] = migration_module.Migration(
+            # Force a reload if it's already loaded (tests need this)
+            if was_loaded:
+                reload(module)
+            self.migrated_apps.add(app_config.label)
+            migration_names = {
+                name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
+                if not is_pkg and name[0] not in '_~'
                     migration_name,
                     app_config.label,
                 )
