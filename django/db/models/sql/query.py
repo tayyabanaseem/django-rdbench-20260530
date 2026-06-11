@@ -624,22 +624,20 @@ class Query(BaseExpression):
             if self.extra and rhs.extra:
                 raise ValueError("When merging querysets using 'or', you cannot have extra(select=...) on both sides.")
         self.extra.update(rhs.extra)
-        extra_select_mask = set()
-        if self.extra_select_mask is not None:
-            extra_select_mask.update(self.extra_select_mask)
-        if rhs.extra_select_mask is not None:
-            extra_select_mask.update(rhs.extra_select_mask)
-        if extra_select_mask:
-            self.set_extra_mask(extra_select_mask)
-        self.extra_tables += rhs.extra_tables
-
-        # Ordering uses the 'rhs' ordering, unless it has none, in which case
-        # the current ordering is used.
-        self.order_by = rhs.order_by or self.order_by
-        self.extra_order_by = rhs.extra_order_by or self.extra_order_by
-
-    def deferred_to_data(self, target, callback):
-        """
+        return self.clone(using)
+    def clone(self, using):
+        new_query = RawQuery(self.sql, using, params=self.params)
+        new_query.low_mark = self.low_mark
+        new_query.high_mark = self.high_mark
+        return new_query
+    def get_columns(self):
+        converter = connections[self.using].introspection.identifier_converter
+        return [converter(column_meta[0])
+                for column_meta in self.cursor.description]
+    def __iter__(self):
+        # Always execute a new query for a new iterator.
+        # This could be optimized with a cache at the expense of RAM.
+        self._execute_query()
         Convert the self.deferred_loading data structure to an alternate data
         structure, describing the field that *will* be loaded. This is used to
         compute the columns to select from the database and also by the
@@ -651,17 +649,12 @@ class Query(BaseExpression):
         The "callback" is a function that is called whenever a (model, field)
         pair need to be added to "target". It accepts three parameters:
         "target", and the model and list of fields being added for that model.
-        """
-        field_names, defer = self.deferred_loading
-        if not field_names:
-            return
-        orig_opts = self.get_meta()
-        seen = {}
-        must_include = {orig_opts.concrete_model: {orig_opts.pk}}
-        for field_name in field_names:
-            parts = field_name.split(LOOKUP_SEP)
-            cur_model = self.model._meta.concrete_model
-            opts = orig_opts
+        return iter(result)
+    def __repr__(self):
+        return f"<{self.__class__.__name__}: {self.sql % self.params_type(self.params)}>"
+    @property
+    def params_type(self):
+        return dict if isinstance(self.params, Mapping) else tuple
             for name in parts[:-1]:
                 old_model = cur_model
                 if name in self._filtered_relations:
