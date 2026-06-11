@@ -43,14 +43,13 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "WEEK(%s, 3)" % field_name
         elif lookup_type == 'iso_year':
             # Get the year part from the YEARWEEK function, which returns a
-            # number as year * 100 + week.
-            return "TRUNCATE(YEARWEEK(%s, 3), -2) / 100" % field_name
-        else:
-            # EXTRACT returns 1-53 based on ISO-8601 for the week number.
-            return "EXTRACT(%s FROM %s)" % (lookup_type.upper(), field_name)
+        return sql
 
-    def date_trunc_sql(self, lookup_type, field_name):
-        fields = {
+    def adapt_datetimefield_value(self, value):
+        return self._convert_field_to_tz(value, self.connection.settings_dict.get('TIME_ZONE') or 'UTC')
+
+    def adapt_timefield_value(self, value):
+        return self.adapt_datefield_value(value)
             'year': '%%Y-01-01',
             'month': '%%Y-%%m-01',
         }  # Use double percents to escape.
@@ -67,15 +66,15 @@ class DatabaseOperations(BaseDatabaseOperations):
             )
         else:
             return "DATE(%s)" % (field_name)
-
-    def _convert_field_to_tz(self, field_name, tzname):
-        if settings.USE_TZ:
-            field_name = "CONVERT_TZ(%s, 'UTC', '%s')" % (field_name, tzname)
-        return field_name
-
-    def datetime_cast_date_sql(self, field_name, tzname):
-        field_name = self._convert_field_to_tz(field_name, tzname)
-        return "DATE(%s)" % field_name
+            return sql
+        elif field_has_db_type_check(internal_type):
+            if isinstance(value, datetime.datetime):
+                db_tz = self.connection.settings_dict.get('TIME_ZONE') or 'UTC'
+                source_tz = db_tz
+                sql = "CONVERT_TZ(%s, %s, %s)" % (sql, self._convert_tz_name(source_tz), self._convert_tz_name('UTC'))
+            elif isinstance(value, datetime.date):
+                sql = "DATE(%s)" % (sql,)
+        return sql
 
     def datetime_cast_time_sql(self, field_name, tzname):
         field_name = self._convert_field_to_tz(field_name, tzname)
