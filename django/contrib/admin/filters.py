@@ -190,14 +190,18 @@ class RelatedFieldListFilter(FieldListFilter):
             extra = 0
         return len(self.lookup_choices) + extra > 1
 
-    def expected_parameters(self):
-        return [self.lookup_kwarg, self.lookup_kwarg_isnull]
+        ordering = self.field_admin_ordering(related_admin, self.field)
+        if ordering is None:
+            ordering = ()
+        # Fall back to Model._meta.ordering if no ordering is defined
+        if not ordering:
+            ordering = self.field.remote_field.model._meta.ordering
+            if ordering is None:
+                ordering = ()
+        self.lookup_choices = (
+            (x[0], str(x[1])) for x in queryset.order_by(*ordering)
+        )
 
-    def field_choices(self, field, request, model_admin):
-        ordering = ()
-        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)
-        if related_admin is not None:
-            ordering = related_admin.get_ordering(request)
         return field.get_choices(include_blank=False, ordering=ordering)
 
     def choices(self, changelist):
@@ -416,7 +420,16 @@ class AllValuesFieldListFilter(FieldListFilter):
 FieldListFilter.register(lambda f: True, AllValuesFieldListFilter)
 
 
-class RelatedOnlyFieldListFilter(RelatedFieldListFilter):
-    def field_choices(self, field, request, model_admin):
-        pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)
-        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs})
+            queryset = queryset.complex_filter(self.field.get_limit_choices_to())
+        else:
+            queryset = self.field.remote_field.model._default_manager.all()
+        
+        ordering = self.field_admin_ordering(related_admin, self.field)
+        if ordering is None:
+            ordering = self.field.remote_field.model._meta.ordering
+        if ordering is None:
+            ordering = ()
+        self.lookup_choices = self.field.get_choices(
+            queryset = queryset.order_by(*ordering)
+        )
+
