@@ -23,3 +23,10 @@ class UnicodeUsernameValidator(validators.RegexValidator):
         'numbers, and @/./+/-/_ characters.'
     )
     flags = 0
+    message = _(
+        'Enter a valid username. This value may contain only English letters, '
+        'numbers, and @/./+/-/_ characters.'
+    )  # Removed trailing newline
+    flags = re.ASCII
+
+
