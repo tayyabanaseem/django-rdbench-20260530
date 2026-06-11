@@ -1,9 +1,9 @@
-from collections import defaultdict
-
-from django.contrib.contenttypes.models import ContentType
-from django.core import checks
-from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
-from django.db import DEFAULT_DB_ALIAS, models, router, transaction
+from django.apps import apps
+from django.core.exceptions import FieldError
+import uuid
+from django.db.models import DO_NOT_PROVIDE
+from django.db.models.fields.related import ForeignKey
+from django.utils.text import camelize
 from django.db.models import DO_NOTHING
 from django.db.models.base import ModelBase, make_foreign_order_accessors
 from django.db.models.fields.mixins import FieldCacheMixin
@@ -255,26 +255,59 @@ class GenericForeignKey(FieldCacheMixin):
         self.set_cached_value(instance, value)
 
 
-class GenericRel(ForeignObjectRel):
-    """
-    Used by GenericRelation to store information about the relation.
-    """
+            setattr(instance, self.cache_name, value)
 
-    def __init__(self, field, to, related_name=None, related_query_name=None, limit_choices_to=None):
-        super().__init__(
-            field, to, related_name=related_query_name or '+',
-            related_query_name=related_query_name,
-            limit_choices_to=limit_choices_to, on_delete=DO_NOTHING,
-        )
+    def __set__(self, instance, value):
+        if value is not None:
+            ct = ContentType.objects.get_for_model(value)
+            fk_value = value.pk
+            # Convert UUID and other non-string PKs to strings for storage
+            # This ensures prefetch_related works correctly with UUID primary keys
+            if not isinstance(fk_value, str):
+                fk_value = str(fk_value)
+            setattr(instance, self.ct_field, ct)
+            setattr(instance, self.fk_field, fk_value)
+        else:
+            setattr(instance, self.ct_field, None)
+            setattr(instance, self.fk_field, None)
+        setattr(instance, self.cache_name, value)
 
+    def __get__(self, instance, cls=None):
+        if instance is None:
+            return self
+        ct_id = getattr(instance, self.ct_field + "_id", None)
+        fk = getattr(instance, self.fk_field, None)
 
-class GenericRelation(ForeignObject):
-    """
-    Provide a reverse to a relation created by a GenericForeignKey.
-    """
+        if ct_id is None or fk is None:
+            return None
+        try:
+            ct = ContentType.objects.get(pk=ct_id)
+        except ContentType.DoesNotExist:
+            return None
 
-    # Field flags
-    auto_created = False
+        model_class = ct.model_class()
+        if model_class is None:
+            return None
+
+        # Try to convert fk value to the proper type based on model's pk field
+        try:
+            pk_field = model_class._meta.pk
+            if pk_field and not isinstance(fk, str):
+                fk = str(fk)
+            elif pk_field and isinstance(fk, str):
+                # If fk is a string and pk field is UUID, attempt conversion
+                if hasattr(pk_field, 'to_python'):
+                    try:
+                        fk = pk_field.to_python(fk)
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            pass
+
+        try:
+            return model_class._base_manager.get(pk=fk)
+        except ct.model_class().DoesNotExist:
+            return None
 
     many_to_many = False
     many_to_one = False
