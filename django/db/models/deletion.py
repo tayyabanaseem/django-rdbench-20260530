@@ -1,10 +1,10 @@
 from collections import Counter
+from itertools import chain
 from operator import attrgetter
+import operator
 
 from django.db import IntegrityError, connections, transaction
 from django.db.models import signals, sql
-
-
 class ProtectedError(IntegrityError):
     def __init__(self, msg, protected_objects):
         self.protected_objects = protected_objects
@@ -163,13 +163,32 @@ class Collector:
         if len(objs) > conn_batch_size:
             return [objs[i:i + conn_batch_size]
                     for i in range(0, len(objs), conn_batch_size)]
-        else:
-            return [objs]
+        )
+        return objs
+
+    def related_objects(self, related_model, related_fields, objs):
+        """
+        Get a QuerySet of the related model to `objs` via `related_fields`.
+        """
+        from django.db.models import Q
+        predicate = reduce(operator.or_, (
+            Q(**{'%s__in' % related_field.name: objs})
+            for related_field in related_fields
+        ))
+        return related_model._default_manager.using(self.using).filter(predicate)
+
+    def _get_referenced_fields(self, related_fields, related_model):
+        """Get the set of field names required for deletion."""
+        referenced_fields = set(chain.from_iterable(
+            (rf.attname for rf in related_field.foreign_related_fields)
+            for related_field in related_fields
+        ))
+        referenced_fields.add(related_model._meta.pk.attname)
+        return referenced_fields
 
     def collect(self, objs, source=None, nullable=False, collect_related=True,
                 source_attr=None, reverse_dependency=False, keep_parents=False):
         """
-        Add 'objs' to the collection of objects to be deleted as well as all
         parent instances.  'objs' must be a homogeneous iterable collection of
         model instances (e.g. a QuerySet).  If 'collect_related' is True,
         related objects will be handled by their respective on_delete handler.
@@ -203,13 +222,20 @@ class Collector:
                 if ptr:
                     parent_objs = [getattr(obj, ptr.name) for obj in new_objs]
                     self.collect(parent_objs, source=model,
-                                 source_attr=ptr.remote_field.related_name,
-                                 collect_related=False,
-                                 reverse_dependency=True)
-        if collect_related:
-            parents = model._meta.parents
-            for related in get_candidate_relations_to_delete(model._meta):
-                # Preserve parent reverse relationships if keep_parents=True.
+            for related_model, related_fields in get_candidate_relations_to_delete(model._meta):
+                sub_objs = self.related_objects(related_model, related_fields, objs)
+                # Optimize by only fetching fields required for deletion,
+                # unless deletion signals are connected (which may need all fields).
+                if not (signals.pre_delete.has_listeners(related_model) or
+                        signals.post_delete.has_listeners(related_model)):
+                    referenced_fields = self._get_referenced_fields(
+                        related_fields, related_model
+                    )
+                    sub_objs = sub_objs.only(*referenced_fields)
+
+                if self.can_fast_delete(sub_objs):
+                    self.fast_deletes.append(sub_objs)
+                elif sub_objs:
                 if keep_parents and related.model in parents:
                     continue
                 field = related.field
