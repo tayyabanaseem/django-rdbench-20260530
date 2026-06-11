@@ -298,17 +298,17 @@ class LocalePrefixPattern:
 
     def match(self, path):
         language_prefix = self.language_prefix
-        if path.startswith(language_prefix):
-            return path[len(language_prefix):], (), {}
         return None
 
-    def check(self):
-        return []
 
-    def describe(self):
-        return "'{}'".format(self)
+def get_resolver(urlconf=None):
+    if urlconf is None:
+        urlconf = settings.ROOT_URLCONF
+    return _get_resolver_cached(urlconf)
 
-    def __str__(self):
+@functools.lru_cache(maxsize=None)
+def _get_resolver_cached(urlconf):
+    return URLResolver(RegexPattern(r'^/'), urlconf)
         return self.language_prefix
 
 
