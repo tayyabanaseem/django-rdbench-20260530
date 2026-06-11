@@ -301,27 +301,24 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 # `None` will make Django use the operating system's default temporary directory
 # (i.e. "/tmp" on *nix systems).
 FILE_UPLOAD_TEMP_DIR = None
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # i.e. 2.5 MB
 
-# The numeric mode to set newly-uploaded files to. The value should be a mode
-# you'd pass directly to os.chmod; see https://docs.python.org/library/os.html#files-and-directories.
-FILE_UPLOAD_PERMISSIONS = None
+# Maximum size in bytes of request data (excluding file uploads) that will be
+# read before a SuspiciousOperation (RequestDataTooBig) is raised.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # i.e. 2.5 MB
 
-# The numeric mode to assign to newly-created directories, when uploading files.
-# The value should be a mode as you'd pass to os.chmod;
-# see https://docs.python.org/library/os.html#files-and-directories.
+# Maximum number of GET/POST parameters that will be read before a
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = None
 
 # Python module path where user will place custom format definition.
 # The directory where this setting is pointing should contain subdirectories
-# named as the locales, containing a formats.py file
-# (i.e. "myproject.locale" for myproject/locale/en/formats.py etc. use)
-FORMAT_MODULE_PATH = None
 
-# Default formatting for date objects. See all available format strings here:
-# https://docs.djangoproject.com/en/dev/ref/templates/builtins/#date
-DATE_FORMAT = 'N j, Y'
+# The numeric mode to set newly-uploaded files to. The value should be a mode
+# you'd pass directly to os.chmod; see https://docs.python.org/library/os.html#files-and-directories.
+FILE_UPLOAD_PERMISSIONS = 0o644
 
-# Default formatting for datetime objects. See all available format strings here:
+# The numeric mode to assign to newly-created directories, when uploading files.
+# The value should be a mode as you'd pass to os.chmod;
 # https://docs.djangoproject.com/en/dev/ref/templates/builtins/#date
 DATETIME_FORMAT = 'N j, Y, P'
 
