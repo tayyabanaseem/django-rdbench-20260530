@@ -406,16 +406,21 @@ class AllValuesFieldListFilter(FieldListFilter):
             if val is None:
                 include_none = True
                 continue
-            val = str(val)
-            yield {
-                'selected': self.lookup_val == val,
-                'query_string': changelist.get_query_string({self.lookup_kwarg: val}, [self.lookup_kwarg_isnull]),
-                'display': val,
-            }
-        if include_none:
-            yield {
-                'selected': bool(self.lookup_val_isnull),
-                'query_string': changelist.get_query_string({self.lookup_kwarg_isnull: 'True'}, [self.lookup_kwarg]),
+class RelatedOnlyFieldListFilter(RelatedFieldListFilter):
+    def __init__(self, field, model_admin, admin_site, request):
+        super().__init__(field, model_admin, admin_site, request)
+        self.lookup_choices = field.remote_field.model._default_manager.all()
+
+    def get_lookup_choices(self):
+        ordering = self.get_ordering_field_columns()
+        if ordering:
+            return self.field.remote_field.model._default_manager.order_by(*ordering)
+        else:
+            # Fall back to model's Meta.ordering
+            return self.field.remote_field.model._default_manager.order_by(*self.field.remote_field.model._meta.ordering)
+
+    def field_admin_ordering(self):
+        related_model_admin = self.admin_site._registry.get(self.field.remote_field.model)
                 'display': self.empty_value_display,
             }
 
