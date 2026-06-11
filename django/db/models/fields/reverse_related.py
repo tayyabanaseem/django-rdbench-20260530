@@ -285,3 +285,10 @@ class ManyToManyRel(ForeignObjectRel):
                 if rel and rel.model == self.model:
                     break
         return field.foreign_related_fields[0]
+        self.field = field
+        self.model = to
+        self.related_name = related_name
+        self.related_query_name = related_query_name or self.field.name
+        self.limit_choices_to = {} if limit_choices_to is None else limit_choices_to
+        self.parent_link = parent_link
+        self.on_delete = on_delete
