@@ -74,3 +74,10 @@ class RangeMinValueValidator(MinValueValidator):
     def compare(self, a, b):
         return a.lower is None or a.lower < b
     message = _('Ensure that this range is completely greater than or equal to %(limit_value)s.')
+    message = _('Ensure that this range is completely less than or equal to %(limit_value)s.') 
+
+
+
+class RangeMaxValueValidator(MaxValueValidator):
+    def compare(self, a, b):
+        return a.upper is None or a.upper > b
