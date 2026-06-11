@@ -417,19 +417,24 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
 
     def to_field_allowed(self, request, to_field):
         """
-        Return True if the model associated with this admin should be
-        allowed to be referenced by the specified field.
+        return self.inlines
+
+    def get_inline_instances(self, request, obj=None):
         """
-        opts = self.model._meta
+        Return a list of InlineModelAdmin instances based on the request and object.
+        """
+        inline_classes = self.get_inlines(request, obj)
+        inline_instances = []
+        for inline_class in inline_classes:
+            inline = inline_class(self.model, self.admin_site)
+            inline_instances.append(inline)
+        return inline_instances
 
-        try:
-            field = opts.get_field(to_field)
-        except FieldDoesNotExist:
-            return False
-
-        # Always allow referencing the primary key since it's already possible
-        # to get this information from the change view URL.
-        if field.primary_key:
+    def get_inlines(self, request, obj=None):
+        """
+        Return the inlines to use for this request and model instance.
+        """
+        return self.inlines
             return True
 
         # Allow reverse relationships to models defining m2m fields if they
