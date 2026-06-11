@@ -1231,19 +1231,24 @@ specify a particular storage system. See :doc:`/topics/files`.
 
 Default: ``'webmaster@localhost'``
 
-Default email address to use for various automated correspondence from the
-site manager(s). This doesn't include error messages sent to :setting:`ADMINS`
-and :setting:`MANAGERS`; for that, see :setting:`SERVER_EMAIL`.
+FILE_UPLOAD_PERMISSIONS
+----------------------
 
-.. setting:: DEFAULT_INDEX_TABLESPACE
+.. versionchanged:: 3.0
+   The default value changed from ``None`` to ``0o644``.
 
-``DEFAULT_INDEX_TABLESPACE``
-----------------------------
+The numeric mode (e.g. ``0o644``) to set newly uploaded files to. For
+more information about what these modes mean, see the `documentation on
+os.chmod() <https://docs.python.org/3/library/os.html#os.chmod>`_.
 
-Default: ``''`` (Empty string)
-
-Default tablespace to use for indexes on fields that don't specify
-one, if the backend supports it (see :doc:`/topics/db/tablespaces`).
+If this is set to ``None``, you'll get operating-system dependent behavior.
+On most platforms, files uploaded via a temporary file will have a mode of
+``0o600`` (because temporary files are created with restrictive permissions
+for security reasons), while files uploaded from memory will be saved using
+the system's standard umask. This inconsistency can be problematic, which is
+why the default has been set to ``0o644`` to provide consistent, reasonable
+permissions. For increased security, you may want to set this to ``0o600`` if
+you control the umask of the process.
 
 .. setting:: DEFAULT_TABLESPACE
 
