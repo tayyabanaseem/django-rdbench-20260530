@@ -1590,10 +1590,19 @@ class Query(BaseExpression):
         query.extra = {}
         
         # Preserve FilteredRelation annotations that are referenced in the filter
-        # expression so that exclude() can properly use them in subqueries
-        query.annotations = {}
+        # This ensures exclude() properly uses the filtered relation's condition
         filter_field_name = filter_expr[0].split(LOOKUP_SEP)[0]
+        query.annotations = {}
         
+        if filter_field_name in self.annotations:
+            annotation = self.annotations[filter_field_name]
+            if isinstance(annotation, FilteredRelation):
+                # Copy the FilteredRelation so the subquery uses its condition
+                query.annotations[filter_field_name] = annotation
+        
+        query.add_filter(filter_expr)
+
+        return query, can_reuse
         if filter_field_name in self.annotations:
             annotation = self.annotations[filter_field_name]
             if isinstance(annotation, FilteredRelation):
