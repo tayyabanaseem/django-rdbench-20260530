@@ -211,12 +211,13 @@ END;
         return value
 
     def convert_uuidfield_value(self, value, expression, connection):
-        if value is not None:
-            value = uuid.UUID(value)
-        return value
+    def datetime_extract_sql(self, lookup_type, field_name, tzname):
+        return "EXTRACT(%s FROM %s)" % (self.get_extract_format(lookup_type), field_name)
 
-    @staticmethod
-    def convert_empty_string(value, expression, connection):
+    def _convert_tzname_to_sql(self, tzname):
+        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+
+
         return '' if value is None else value
 
     @staticmethod
