@@ -33,17 +33,34 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
         if abs(exponent) + len(digits) > 200:
             number = '{:e}'.format(number)
             coefficient, exponent = number.split('e')
-            # Format the coefficient.
-            coefficient = format(
-                coefficient, decimal_sep, decimal_pos, grouping,
-                thousand_sep, force_grouping, use_l10n,
-            )
-            return '{}e{}'.format(coefficient, exponent)
-        else:
-            str_number = '{:f}'.format(number)
+        return str(number)
+
+    if isinstance(number, Decimal):
+        # Avoid conversion to float, which results in power-of-10 rounding artifacts.
+        # When decimal_pos is specified, we should round to that many decimal places
+        # rather than using exponential notation.
+        if decimal_pos is not None:
+            # Use string representation to avoid exponential notation
+            # when the number is smaller than what decimal_pos can represent
+            quantized = number.quantize(Decimal(10) ** -decimal_pos)
+            # Convert to string and parse to avoid exponential notation
+            number_str = str(quantized)
+            if 'E' in number_str or 'e' in number_str:
+                number = Decimal(0)
+            else:
+                number = quantized
+        if decimal_pos is not None:
+            # Use string representation to avoid exponential notation
+            # when the number is smaller than what decimal_pos can represent
+            quantized = number.quantize(Decimal(10) ** -decimal_pos)
+            # Convert to string and parse to avoid exponential notation
+            number_str = str(quantized)
+            if 'E' in number_str or 'e' in number_str:
+                number = Decimal(0)
+            else:
+                number = quantized
     else:
-        str_number = str(number)
-    if str_number[0] == '-':
+        sign, digits, exponent = number.as_tuple()
         sign = '-'
         str_number = str_number[1:]
     # decimal part
