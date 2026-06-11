@@ -2055,14 +2055,30 @@ class InlineModelAdmin(BaseModelAdmin):
                 We don't validate the 'DELETE' field itself because on
                 templates it's not rendered using the field information, but
                 just using a generic "deletion_field" of the InlineModelAdmin.
-                """
-                if self.cleaned_data.get(DELETION_FIELD_NAME, False):
-                    using = router.db_for_write(self._meta.model)
-                    collector = NestedObjects(using=using)
-                    if self.instance._state.adding:
-                        return
-                    collector.collect([self.instance])
-                    if collector.protected:
+            return self._has_add_or_change_permission_for_auto_created(request)
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self.opts.auto_created:
+            # We're checking the rights to an auto-created intermediate model,
+            # which doesn't have its own individual permissions. The user needs
+            # to have the change permission for the related model in order to
+            # be able to do anything with the intermediate model.
+            return self._has_add_or_change_permission_for_auto_created(request)
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self.opts.auto_created:
+            # We're checking the rights to an auto-created intermediate model,
+            # which doesn't have its own individual permissions. The user needs
+            # to have the change permission for the related model in order to
+            # be able to do anything with the intermediate model.
+            return self._has_add_or_change_permission_for_auto_created(request)
+        return super().has_delete_permission(request, obj)
+
+    def _has_add_or_change_permission_for_auto_created(self, request):
+        opts = self.opts
+        codename = get_permission_codename('change', opts.get_parent_list()[0])
                         objs = []
                         for p in collector.protected:
                             objs.append(
