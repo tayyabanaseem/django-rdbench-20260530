@@ -62,27 +62,24 @@ class RegexValidator:
     def __eq__(self, other):
         return (
             isinstance(other, RegexValidator) and
-            self.regex.pattern == other.regex.pattern and
-            self.regex.flags == other.regex.flags and
-            (self.message == other.message) and
-            (self.code == other.code) and
-            (self.inverse_match == other.inverse_match)
-        )
-
-
-@deconstructible
-class URLValidator(RegexValidator):
-    ul = '\u00a1-\uffff'  # unicode letters range (must not be a raw string)
+    ul = '\u00a1-\uffff'  # unicode letters range (must be a unicode string, not a raw string)
 
     # IP patterns
-    ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
+    ipv4_re = r'(?:0|25[0-5]|2[0-4]\d|1\d?\d?|[1-9]\d?)(?:\.(?:0|25[0-5]|2[0-4]\d|1\d?\d?|[1-9]\d?)){3}'
     ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
 
     # Host patterns
-    hostname_re = r'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
-    # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
-    domain_re = r'(?:\.(?!-)[a-z' + ul + r'0-9-]{1,63}(?<!-))*'
-    tld_re = (
+@deconstructible
+class URLValidator(RegexValidator):
+    ul = '\u00a1-\uffff'  # unicode letters range (must not be a raw string)
+    host_re = '(' + hostname_re + domain_re + tld_re + '|localhost)'
+
+    regex = _lazy_re_compile(
+        r'^(?:[a-z0-9\.\-\+]*)://'  # scheme is validated separately
+        r'(?:[^\s:@/]+(?::[^\s:@/]*)?@)?'  # user:pass authentication
+        r'(?:' + ipv4_re + '|' + ipv6_re + '|' + host_re + ')'
+        r'(?::\d{2,5})?'  # port
+        r'(?:[/?#][^\s]*)?'  # resource path
         r'\.'                                # dot
         r'(?!-)'                             # can't start with a dash
         r'(?:[a-z' + ul + '-]{2,63}'         # domain label
