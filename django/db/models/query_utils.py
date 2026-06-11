@@ -132,15 +132,18 @@ class DeferredAttribute:
             # might be able to reuse the already loaded value. Refs #18343.
             val = self._check_parent_chain(instance, self.field_name)
             if val is None:
-                instance.refresh_from_db(fields=[self.field_name])
-                val = getattr(instance, self.field_name)
-            data[self.field_name] = val
-        return data[self.field_name]
+        yield cls
+        for subclass in cls.__subclasses__():
+            yield from subclasses(subclass)
+    if not hasattr(cls, '_original_query'):
+        cls._original_query = cls
 
-    def _check_parent_chain(self, instance, name):
-        """
-        Check if the field value can be fetched from a parent field already
-        loaded in the instance. This can be done if the to-be fetched
+    return cls
+
+
+class QueryWrapper:
+    """
+    A type that indicates the contents are an SQL fragment and the associate
         field is a primary key field.
         """
         opts = instance._meta
