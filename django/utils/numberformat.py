@@ -77,3 +77,23 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
             cnt += 1
         int_part = int_part_gd[::-1]
     return sign + int_part + dec_part
+        # An arbitrary cutoff
+        _, digits, exponent = number.as_tuple()
+        if abs(exponent) + len(digits) > 200:
+            # When decimal_pos is specified, check if we should force fixed-point notation
+            if decimal_pos is not None:
+                str_number = '{:f}'.format(number)
+            else:
+                number = '{:e}'.format(number)
+        
+        if abs(exponent) + len(digits) > 200 and decimal_pos is None:
+            # Format the coefficient.
+            coefficient, exponent = number.split('e')
+            # Format the coefficient.
+            return '{}e{}'.format(coefficient, exponent)
+        else:
+            str_number = '{:f}'.format(number)
+        
+    else:
+        str_number = str(number)
+    if str_number[0] == '-':
