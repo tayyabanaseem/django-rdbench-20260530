@@ -1,10 +1,9 @@
 import psycopg2
-
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.backends.postgresql.utils import utc_tzinfo_factory
 from django.db.backends.ddl_references import IndexColumns
-
-
-class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+from django.db.models import UniqueConstraint
+from django.db.transaction import atomic
 
     sql_alter_column_type = "ALTER COLUMN %(column)s TYPE %(type)s USING %(column)s::%(type)s"
 
@@ -136,14 +135,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 (not old_field.unique and new_field.unique)):
             like_index_statement = self._create_like_index_sql(model, new_field)
             if like_index_statement is not None:
-                self.execute(like_index_statement)
-
-        # Removed an index? Drop any PostgreSQL-specific indexes.
-        if old_field.unique and not (new_field.db_index or new_field.unique):
-            index_to_remove = self._create_index_name(model._meta.db_table, [old_field.column], suffix='_like')
-            self.execute(self._delete_index_sql(model, index_to_remove))
-
-    def _index_columns(self, table, columns, col_suffixes, opclasses):
-        if opclasses:
+    sql_create_index = "CREATE INDEX %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s%(condition)s"
+    sql_delete_index = "DROP INDEX IF EXISTS %(name)s"
+    sql_create_column_inline_fk = 'REFERENCES %(to_table)s(%(to_column)s) %(deferrable)s'
+    # Setting the constraint to IMMEDIATE runs any deferred checks to allow
+    # dropping it in the same transaction.
+    sql_delete_fk = "SET CONSTRAINTS %(name)s IMMEDIATE; ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"
             return IndexColumns(table, columns, self.quote_name, col_suffixes=col_suffixes, opclasses=opclasses)
         return super()._index_columns(table, columns, col_suffixes, opclasses)
