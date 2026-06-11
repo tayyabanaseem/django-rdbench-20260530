@@ -241,3 +241,29 @@ class SubqueryConstraint:
         query.set_values(self.targets)
         query_compiler = query.get_compiler(connection=connection)
         return query_compiler.as_subquery_condition(self.alias, self.columns, compiler)
+        # and either relabeled_clone() method or relabel_aliases() and clone()
+        # methods and contains_aggregate attribute.
+        """
+    default = 'AND'
+    resolved = False
+    conditional = True
+        return where_node, having_node
+
+    def as_sql(self, compiler=None, connection=None):
+        """
+        Return the SQL version of the where clause and the value to be
+        substituted in. Return '', [] if this node matches everything,
+        None, [] if this node is empty, and raise EmptyResultSet if this
+        node can't match anything.
+        """
+        result = []
+        result_params = []
+        if self.connector == AND:
+        if sql_string:
+            if self.negated:
+                # Some backends (Oracle at least) need parentheses
+                # around the inner SQL in the negated case, even if the
+                # inner SQL contains just a single expression.
+                sql_string = 'NOT (%s)' % sql_string
+            elif len(result) > 1 or self.resolved:
+                sql_string = '(%s)' % sql_string
