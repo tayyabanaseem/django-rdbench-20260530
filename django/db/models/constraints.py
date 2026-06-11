@@ -1,8 +1,8 @@
 from django.db.models.query_utils import Q
 from django.db.models.sql.query import Query
+from django.db.models.expressions import Col, SimpleCol
 
 __all__ = ['CheckConstraint', 'UniqueConstraint']
-
 
 class BaseConstraint:
     def __init__(self, name):
@@ -29,14 +29,35 @@ class BaseConstraint:
 
 class CheckConstraint(BaseConstraint):
     def __init__(self, *, check, name):
-        self.check = check
-        super().__init__(name)
-
     def _get_check_sql(self, model, schema_editor):
         query = Query(model=model)
         where = query.build_where(self.check)
+        where = self._remove_table_aliases(where)
         compiler = query.get_compiler(connection=schema_editor.connection)
         sql, params = where.as_sql(compiler, schema_editor.connection)
+        return sql % tuple(schema_editor.quote_value(p) for p in params)
+
+    def _remove_table_aliases(self, node):
+        """
+        Recursively replace Col nodes with SimpleCol nodes to remove table aliases
+        from check constraint expressions. This ensures the constraint works correctly
+        when tables are recreated during migrations.
+        """
+        if isinstance(node, Col):
+            return SimpleCol(node.alias, node.output_field)
+        
+        # Handle children nodes recursively
+        if hasattr(node, 'children'):
+            new_children = []
+            for child in node.children:
+                if isinstance(child, tuple):
+                    # For tuples like (name, value)
+                    new_children.append((child[0], self._remove_table_aliases(child[1])))
+                else:
+                    new_children.append(self._remove_table_aliases(child))
+            node.children = new_children
+        
+        return node
         return sql % tuple(schema_editor.quote_value(p) for p in params)
 
     def constraint_sql(self, model, schema_editor):
