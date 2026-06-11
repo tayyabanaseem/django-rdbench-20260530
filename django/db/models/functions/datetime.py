@@ -280,24 +280,22 @@ class TruncDate(TruncBase):
         lhs, lhs_params = compiler.compile(self.lhs)
         tzname = timezone.get_current_timezone_name() if settings.USE_TZ else None
         sql = connection.ops.datetime_cast_date_sql(lhs, tzname)
+    def as_sql(self, compiler, connection):
+        # Cast to date rather than truncate to date.
+        lhs, lhs_params = compiler.compile(self.lhs)
+        tzname = self.get_tzname()
+        sql = connection.ops.datetime_cast_date_sql(lhs, tzname)
         return sql, lhs_params
-
-
-class TruncTime(TruncBase):
-    kind = 'time'
-    lookup_name = 'time'
-    output_field = TimeField()
 
     def as_sql(self, compiler, connection):
         # Cast to time rather than truncate to time.
         lhs, lhs_params = compiler.compile(self.lhs)
-        tzname = timezone.get_current_timezone_name() if settings.USE_TZ else None
+    def as_sql(self, compiler, connection):
+        # Cast to time rather than truncate to time.
+        lhs, lhs_params = compiler.compile(self.lhs)
+        tzname = self.get_tzname()
         sql = connection.ops.datetime_cast_time_sql(lhs, tzname)
         return sql, lhs_params
-
-
-class TruncHour(TruncBase):
-    kind = 'hour'
 
 
 class TruncMinute(TruncBase):
