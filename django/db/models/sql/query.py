@@ -283,15 +283,15 @@ class Query(BaseExpression):
 
     def get_meta(self):
         """
-        Return the Options instance (the model._meta) from which to start
-        processing. Normally, this is self.model._meta, but it can be changed
-        by subclasses.
-        """
-        return self.model._meta
-
-    def clone(self):
-        """
-        Return a copy of the current Query. A lightweight alternative to
+    def _chain(self):
+        obj = self.__class__(self.model)
+        obj.__dict__.update(self.__dict__)
+        obj.alias_refcount = self.alias_refcount.copy()
+        if self.combined_queries:
+            obj.combined_queries = tuple(q._chain() for q in self.combined_queries)
+        obj.alias_map = self.alias_map.copy()
+        obj.external_aliases = self.external_aliases.copy()
+        obj.table_map = self.table_map.copy()
         to deepcopy().
         """
         obj = Empty()
