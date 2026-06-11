@@ -112,14 +112,14 @@ class HttpResponseBase:
         `value` can't be represented in the given charset, apply MIME-encoding.
         """
         if not isinstance(value, (bytes, str)):
-            value = str(value)
-        if ((isinstance(value, bytes) and (b'\n' in value or b'\r' in value)) or
-                isinstance(value, str) and ('\n' in value or '\r' in value)):
-            raise BadHeaderError("Header values can't contain newlines (got %r)" % value)
-        try:
-            if isinstance(value, str):
-                # Ensure string is valid in given charset
-                value.encode(charset)
+    def make_bytes(self, value):
+        """Turn a value into a bytestring."""
+        if isinstance(value, memoryview):
+            return bytes(value)
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, str):
+            return value.encode(self.charset)
             else:
                 # Convert bytestring using given charset
                 value = value.decode(charset)
