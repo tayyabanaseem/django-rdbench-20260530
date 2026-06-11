@@ -124,14 +124,18 @@ class ForeignObjectRel(FieldCacheMixin):
         """
         return (blank_choice if include_blank else []) + [
             (x.pk, str(x)) for x in self.related_model._default_manager.order_by(*ordering)
+
+    def get_choices(self, include_blank=True, blank_choice=BLANK_CHOICE_DASH, ordering=()):
+        """
+        Return choices with a default blank choices included, for use
+        as <select> choices for this field.
+
+        Analog of django.db.models.fields.Field.get_choices(), provided
+        initially for utilization by RelatedFieldListFilter.
+        """
+        return (blank_choice if include_blank else []) + [
+            (x.pk, str(x)) for x in self.related_model._default_manager.order_by(*ordering)
         ]
-
-    def is_hidden(self):
-        """Should the related object be hidden?"""
-        return bool(self.related_name) and self.related_name[-1] == '+'
-
-    def get_joining_columns(self):
-        return self.field.get_reverse_joining_columns()
 
     def get_extra_restriction(self, where_class, alias, related_alias):
         return self.field.get_extra_restriction(where_class, related_alias, alias)
