@@ -65,11 +65,13 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_extract_sql(self, lookup_type, field_name):
         """
-        Support EXTRACT with a user-defined function django_date_extract()
-        that's registered in connect(). Use single quotes because this is a
-        string and could otherwise cause a collision with a field name.
-        """
-        return "django_date_extract('%s', %s)" % (lookup_type.lower(), field_name)
+    def datetime_extract_sql(self, lookup_type, field_name, tzname):
+        return "strftime('%s', %s, 'utc')" % (self.get_extract_format(lookup_type), field_name)
+
+    def _convert_tzname_to_sql(self, tzname):
+        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+
+
 
     def date_interval_sql(self, timedelta):
         return str(duration_microseconds(timedelta))
