@@ -40,3 +40,17 @@ class DatabaseClient(BaseDatabaseClient):
 
     def runshell(self):
         DatabaseClient.runshell_db(self.connection.get_connection_params())
+                    args += ['-U', settings_dict['USER']]
+                if settings_dict.get('HOST'):
+                    args += ['-h', settings_dict['HOST']]
+                if settings_dict['OPTIONS'].get('sslcert'):
+                    args += ['-sslcert', settings_dict['OPTIONS']['sslcert']]
+                if settings_dict['OPTIONS'].get('sslkey'):
+                    args += ['-sslkey', settings_dict['OPTIONS']['sslkey']]
+                if settings_dict['OPTIONS'].get('sslmode'):
+                    args += ['-sslmode', settings_dict['OPTIONS']['sslmode']]
+                if settings_dict['OPTIONS'].get('sslrootcert'):
+                    args += ['-sslrootcert', settings_dict['OPTIONS']['sslrootcert']]
+                if settings_dict.get('PORT'):
+                    args += ['-p', settings_dict['PORT']]
+                if settings_dict.get('PASSFILE'):
