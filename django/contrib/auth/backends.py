@@ -15,14 +15,14 @@ class BaseBackend:
     def get_user(self, user_id):
         return None
 
-    def get_user_permissions(self, user_obj, obj=None):
-        return set()
-
-    def get_group_permissions(self, user_obj, obj=None):
-        return set()
-
-    def get_all_permissions(self, user_obj, obj=None):
-        return {
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        if username is None:
+            username = kwargs.get(UserModel.USERNAME_FIELD)
+        if username is None or password is None:
+            return
+        # The permissions system provides no way to identify anonymous
+        # users, so we now create an AnonymousUser object.
+        try:
             *self.get_user_permissions(user_obj, obj=obj),
             *self.get_group_permissions(user_obj, obj=obj),
         }
