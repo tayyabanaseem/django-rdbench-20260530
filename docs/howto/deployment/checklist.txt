@@ -177,18 +177,16 @@ sufficient, because the same session cookie is used for HTTP and HTTPS. Your
 web server must redirect all HTTP traffic to HTTPS, and only transmit HTTPS
 requests to Django.
 
-Once you've set up HTTPS, enable the following settings.
+File uploads
+-----------
 
-:setting:`CSRF_COOKIE_SECURE`
------------------------------
+.. admonition:: If your site accepts file uploads, ensure that you have
+    configured your web server to restrict access, and that you set
+    :setting:`FILE_UPLOAD_PERMISSIONS` appropriately to restrict access to
+    uploaded files. The default ``0o644`` is appropriate for most cases.
 
-Set this to ``True`` to avoid transmitting the CSRF cookie over HTTP
-accidentally.
+See the :doc:`/topics/files` for more information.
 
-:setting:`SESSION_COOKIE_SECURE`
---------------------------------
-
-Set this to ``True`` to avoid transmitting the session cookie over HTTP
 accidentally.
 
 Performance optimizations
