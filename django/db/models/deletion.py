@@ -260,15 +260,26 @@ class Collector:
         self.data = {model: self.data[model] for model in sorted_models}
 
     def delete(self):
-        # sort instance collections
-        for model, instances in self.data.items():
-            self.data[model] = sorted(instances, key=attrgetter("pk"))
+            return
+        new_objs = model._base_manager.using(self.using).filter(
+            pk__in=[obj.pk for obj in objs])
+        
+        # Optimize deletion by only selecting fields needed for traversal
+        opts = model._meta
+        fields_to_select = [opts.pk.attname]
+        
+        # Include fields referenced by relations that need to be followed
+        for field in opts.get_fields():
+            if field.many_to_one or (field.one_to_one and field.auto_created):
+                if hasattr(field, 'attname'):
+                    fields_to_select.append(field.attname)
+                else:
+                    fields_to_select.append(field.name)
+        
+        # Use only() to restrict fetched fields
+        return new_objs.only(*fields_to_select)
 
-        # if possible, bring the models in an order suitable for databases that
-        # don't support transactions or cannot defer constraint checks until the
-        # end of a transaction.
-        self.sort()
-        # number of objects deleted for each model label
+    def get_del_batch(self, del_query, model):
         deleted_counter = Counter()
 
         # Optimize for the case with a single obj and no dependencies
