@@ -217,17 +217,17 @@ class HttpResponseBase:
             key, max_age=0, path=path, domain=domain, secure=secure,
             expires='Thu, 01 Jan 1970 00:00:00 GMT',
         )
-
-    # Common methods used by subclasses
-
     def make_bytes(self, value):
-        """Turn a value into a bytestring encoded in the output charset."""
-        # Per PEP 3333, this response body must be bytes. To avoid returning
-        # an instance of a subclass, this function returns `bytes(value)`.
-        # This doesn't make a copy when `value` already contains bytes.
-
+        """
+        Turn a value into a bytestring which can be assigned to self.content.
+        """
         # Handle string types -- we can't rely on force_bytes here because:
-        # - Python attempts str conversion first
+        # - Python attempts str(value) first if value is a bytes subclass
+        if isinstance(value, memoryview):
+            return bytes(value)
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value)
+        if isinstance(value, str):
         # - when self._charset != 'utf-8' it re-encodes the content
         if isinstance(value, bytes):
             return bytes(value)
