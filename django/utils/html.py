@@ -1,31 +1,22 @@
-"""HTML utilities suitable for global use."""
+"""
+Functions for handling HTML in Django.
+"""
+from html import escape as html_escape
+from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
 
-import json
-import re
-from html.parser import HTMLParser
-from urllib.parse import (
-    parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit,
+from django.utils.safestring import SafeData, SafeString
 )
 
 from django.utils.functional import Promise, keep_lazy, keep_lazy_text
-from django.utils.http import RFC3986_GENDELIMS, RFC3986_SUBDELIMS
-from django.utils.safestring import SafeData, SafeString, mark_safe
-from django.utils.text import normalize_newlines
+CDATA_CONTENT_ELEMENTS = ('script', 'style')
 
-# Configuration for urlize() function.
-TRAILING_PUNCTUATION_CHARS = '.,:;!'
-WRAPPING_PUNCTUATION = [('(', ')'), ('[', ']')]
 
-# List of possible strings used for bullets in bulleted lists.
-DOTS = ['&middot;', '*', '\u2022', '&#149;', '&bull;', '&#8226;']
-
-unencoded_ampersands_re = re.compile(r'&(?!(\w+|#\d+);)')
-word_split_re = re.compile(r'''([\s<>"']+)''')
-simple_url_re = re.compile(r'^https?://\[?\w', re.IGNORECASE)
-simple_url_2_re = re.compile(r'^www\.|^(?!http)\w[^@]+\.(com|edu|gov|int|mil|net|org)($|/.*)$', re.IGNORECASE)
-
-_html_escapes = {
-    ord('&'): '&amp;',
+def escape(text):
+    """
+    Return the given text with ampersands, quotes and angle-brackets escaped.
+    The text can be a lazy instance, so force it to be evaluated first.
+    """
+    return html_escape(str(text), quote=True)
     ord('<'): '&lt;',
     ord('>'): '&gt;',
     ord('"'): '&quot;',
