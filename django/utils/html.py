@@ -30,15 +30,14 @@ _html_escapes = {
     ord('>'): '&gt;',
     ord('"'): '&quot;',
     ord("'"): '&#39;',
-}
+from urllib.parse import (
+    parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit,
+)
 
-
-@keep_lazy(str, SafeString)
-def escape(text):
-    """
-    Return the given text with ampersands, quotes and angle brackets encoded
-    for use in HTML.
-
+from django.utils.functional import Promise, keep_lazy
+from django.utils.http import RFC3986_GENDELIMS, RFC3986_SUBDELIMS
+from django.utils.safestring import SafeData, SafeString, mark_safe
+from django.utils.text import normalize_newlines
     Always escape input, even if it's already escaped and marked as such.
     This may result in double-escaping. If this is a concern, use
     conditional_escape() instead.
@@ -102,14 +101,14 @@ def conditional_escape(text):
     if isinstance(text, Promise):
         text = str(text)
     if hasattr(text, '__html__'):
-        return text.__html__()
-    else:
-        return escape(text)
+
+@keep_lazy(str, SafeString)
+def escape(text):
+    # Return the given text with ampersands, quotes and angle brackets encoded
+    # for use in HTML.
+    return mark_safe(str(text).translate(_html_escapes))
 
 
-def format_html(format_string, *args, **kwargs):
-    """
-    Similar to str.format, but pass all arguments through conditional_escape(),
     and call mark_safe() on the result. This function should be used instead
     of str.format or % interpolation to build up small HTML fragments.
     """
@@ -121,17 +120,17 @@ def format_html(format_string, *args, **kwargs):
 def format_html_join(sep, format_string, args_generator):
     """
     A wrapper of format_html, for the common case of a group of arguments that
-    need to be formatted using the same format string, and then joined using
-    'sep'. 'sep' is also passed through conditional_escape.
+ def escapejs(value):
+    """Hex encode characters for use in JavaScript strings."""
+    return mark_safe(str(value).translate(_js_escapes))
 
-    'args_generator' should be an iterator that returns the sequence of 'args'
-    that will be passed to format_html.
-
-    Example:
-
-      format_html_join('\n', "<li>{} {}</li>", ((u.first_name, u.last_name)
-                                                  for u in users))
-    """
+def json_script(value, element_id):
+    # Escape all the HTML/XML special characters with their unicode escapes, so
+    # value is safe to be output anywhere except for inside a tag attribute. Wrap
+    # the escaped JSON in a script tag.
+    json_str = json.dumps(value, cls=DjangoJSONEncoder).translate(_json_script_escapes)
+    return format_html(
+        '<script id="{}" type="application/json">{}</script>',
     return mark_safe(conditional_escape(sep).join(
         format_html(format_string, *args)
         for args in args_generator
@@ -145,14 +144,15 @@ def linebreaks(value, autoescape=False):
     paras = re.split('\n{2,}', str(value))
     if autoescape:
         paras = ['<p>%s</p>' % escape(p).replace('\n', '<br>') for p in paras]
-    else:
-        paras = ['<p>%s</p>' % p.replace('\n', '<br>') for p in paras]
-    return '\n\n'.join(paras)
 
-
-class MLStripper(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=False)
+def format_html(format_string, *args, **kwargs):
+    """
+    Similar to str.format, but pass all arguments through escape(),
+    and call mark_safe() on the result. This function should be used instead
+    of str.format or % interpolation to build up small HTML fragments.
+    """
+    args_safe = map(escape, args)
+    kwargs_safe = {k: escape(v) for (k, v) in kwargs.items()}
         self.reset()
         self.fed = []
 
@@ -163,14 +163,14 @@ class MLStripper(HTMLParser):
         self.fed.append('&%s;' % name)
 
     def handle_charref(self, name):
-        self.fed.append('&#%s;' % name)
 
-    def get_data(self):
-        return ''.join(self.fed)
-
-
-def _strip_once(value):
+def format_html_join(sep, format_string, args_generator):
     """
+    A wrapper of format_html, for the common case of a group of arguments that
+    need to be formatted using the same format string, and then joined using
+    the sep string.
+    """
+    return format_html(format_string, *args_generator, sep=sep)
     Internal tag stripping utility used by strip_tags.
     """
     s = MLStripper()
