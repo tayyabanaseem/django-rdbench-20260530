@@ -388,29 +388,33 @@ class StreamingHttpResponse(HttpResponseBase):
 
 class FileResponse(StreamingHttpResponse):
     """
-    A streaming HTTP response class optimized for files.
+           return False
+    def writelines(self, lines):
+        if self.streaming:
+            self.write(''.join(lines))
+        else:
+            raise OSError('This %s instance is not writable' % self.__class__.__name__)
+
+
+class HttpResponse(HttpResponseBase):
     """
-    block_size = 4096
+    An HTTP response class with a bytestring as content.
 
-    def __init__(self, *args, as_attachment=False, filename='', **kwargs):
-        self.as_attachment = as_attachment
-        self.filename = filename
+    This content that can be read, appended to, or replaced.
+    """
+
+    streaming = False
+
+    def __init__(self, content=b'', *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Content is a bytestring. See the `content` property methods.
+        self.content = content
 
-    def _set_streaming_content(self, value):
-        if not hasattr(value, 'read'):
-            self.file_to_stream = None
-            return super()._set_streaming_content(value)
+    def serialize(self):
+        return self.serialize_headers() + b'\r\n\r\n' + self.content
 
-        self.file_to_stream = filelike = value
-        if hasattr(filelike, 'close'):
-            self._closable_objects.append(filelike)
-        value = iter(lambda: filelike.read(self.block_size), b'')
-        self.set_headers(filelike)
-        super()._set_streaming_content(value)
-
-    def set_headers(self, filelike):
-        """
+    def __bytes__(self):
+        return self.serialize
         Set some common response headers (Content-Length, Content-Type, and
         Content-Disposition) based on the `filelike` response content.
         """
@@ -427,14 +431,13 @@ class FileResponse(StreamingHttpResponse):
             self['Content-Length'] = filelike.getbuffer().nbytes
 
         if self.get('Content-Type', '').startswith('text/html'):
-            if filename:
-                content_type, encoding = mimetypes.guess_type(filename)
-                # Encoding isn't set to prevent browsers from automatically
-                # uncompressing files.
-                content_type = encoding_map.get(encoding, content_type)
-                self['Content-Type'] = content_type or 'application/octet-stream'
-            else:
-                self['Content-Type'] = 'application/octet-stream'
+
+    @property
+    def content(self):
+        return self.content
+
+    @content.setter
+    def content(self, value):
 
         if self.as_attachment:
             filename = self.filename or os.path.basename(filename)
@@ -455,14 +458,13 @@ class HttpResponseRedirectBase(HttpResponse):
         self['Location'] = iri_to_uri(redirect_to)
         parsed = urlparse(str(redirect_to))
         if parsed.scheme and parsed.scheme not in self.allowed_schemes:
-            raise DisallowedRedirect("Unsafe redirect to URL with protocol '%s'" % parsed.scheme)
+        return len(self.content)
 
-    url = property(lambda self: self['Location'])
+    def getvalue(self):
+        return self.content
 
-    def __repr__(self):
-        return '<%(cls)s status_code=%(status_code)d%(content_type)s, url="%(url)s">' % {
-            'cls': self.__class__.__name__,
-            'status_code': self.status_code,
+    def writable(self):
+        return True
             'content_type': self._content_type_for_repr,
             'url': self.url,
         }
@@ -470,55 +472,51 @@ class HttpResponseRedirectBase(HttpResponse):
 
 class HttpResponseRedirect(HttpResponseRedirectBase):
     status_code = 302
+            self.write(line)
 
 
-class HttpResponsePermanentRedirect(HttpResponseRedirectBase):
-    status_code = 301
+class StreamingHttpResponse(HttpResponseBase):
+    A streaming HTTP response class with a bytestring as content.
 
-
-class HttpResponseNotModified(HttpResponse):
-    status_code = 304
-
+    This should only be iterated once, when the response is streamed to the
+    client. However, it can be appended to or replaced with a new iterator
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         del self['content-type']
 
     @HttpResponse.content.setter
     def content(self, value):
-        if value:
-            raise AttributeError("You cannot set content to a 304 (Not Modified) response")
-        self._container = []
+        return self.streaming_content
 
+    @property
+    def content(self):
+        raise AttributeError(
+            "This %s instance has no `content` attribute. Use "
+            "`streaming_content` instead." % self.__class__.__name__
+        )
 
-class HttpResponseBadRequest(HttpResponse):
-    status_code = 400
-
-
-class HttpResponseNotFound(HttpResponse):
-    status_code = 404
+    def __iter__(self):
 
 
 class HttpResponseForbidden(HttpResponse):
     status_code = 403
 
+    def getvalue(self):
+        return b''.join(self.streaming_content)
 
-class HttpResponseNotAllowed(HttpResponse):
-    status_code = 405
+    def writable(self):
+        return True
 
-    def __init__(self, permitted_methods, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self['Allow'] = ', '.join(permitted_methods)
-
-    def __repr__(self):
-        return '<%(cls)s [%(methods)s] status_code=%(status_code)d%(content_type)s>' % {
-            'cls': self.__class__.__name__,
-            'status_code': self.status_code,
-            'content_type': self._content_type_for_repr,
-            'methods': self['Allow'],
-        }
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
 
 
-class HttpResponseGone(HttpResponse):
+class FileResponse(StreamingHttpResponse):
+    A streaming HTTP response class optimized for files.
+
+    This is a subclass of `StreamingHttpResponse` that is optimized for reading
+    files directly into the response.
     status_code = 410
 
 
