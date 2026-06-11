@@ -997,16 +997,20 @@ class ModelAdmin(BaseModelAdmin):
                 else:
                     prev_field = field
                     if hasattr(field, 'get_path_info'):
-                        # Update opts to follow the relation.
-                        opts = field.get_path_info()[-1].to_opts
-            # Otherwise, use the field with icontains.
-            return "%s__icontains" % field_name
+        return True
 
-        use_distinct = False
-        search_fields = self.get_search_fields(request)
-        if search_fields and search_term:
-            orm_lookups = [construct_search(str(search_field))
-                           for search_field in search_fields]
+    def has_add_permission(self, request):
+        # For auto-created M2M through models, check both sides of the relation
+        if self.model._meta.auto_created:
+            # Get the parent model and check if user has change permission on it
+            opts = self.model._meta
+            parent_model = opts.get_field(opts.many_to_one[0].name).related_model
+            if not self.admin_site._registry[parent_model].has_change_permission(request):
+                return False
+        
+        opts = self.model._meta
+        codename = get_permission_codename('add', opts)
+        return request.user.has_perm("%s.%s" % (opts.app_label, codename))
             for bit in search_term.split():
                 or_queries = [models.Q(**{orm_lookup: bit})
                               for orm_lookup in orm_lookups]
