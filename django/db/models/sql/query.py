@@ -570,15 +570,14 @@ class Query:
         joinpromoter = JoinPromoter(connector, 2, False)
         joinpromoter.add_votes(
             j for j in self.alias_map if self.alias_map[j].join_type == INNER)
-        rhs_votes = set()
-        # Now, add the joins from rhs query into the new query (skipping base
-        # table).
-        rhs_tables = list(rhs.alias_map)[1:]
-        for alias in rhs_tables:
-            join = rhs.alias_map[alias]
-            # If the left side of the join was already relabeled, use the
-            # updated alias.
-            join = join.relabeled_clone(change_map)
+        return compiler.execute_sql(SINGLE)
+        if result is None:
+            result = [None] * len(outer_query.annotation_select.values())
+        converters = compiler.get_converters(outer_query.annotation_select)
+        result = next(compiler.apply_converters((result,), converters))
+        return dict(zip(outer_query.annotation_select, result))
+
+    def _update(self, values):
             new_alias = self.join(join, reuse=reuse)
             if join.join_type == INNER:
                 rhs_votes.add(new_alias)
