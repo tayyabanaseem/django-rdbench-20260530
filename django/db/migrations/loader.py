@@ -82,24 +82,16 @@ class MigrationLoader:
                         not explicit and "No module named" in str(e) and MIGRATIONS_MODULE_NAME in str(e))):
                     self.unmigrated_apps.add(app_config.label)
                     continue
+            except ImportError as e:
+                # I hate doing this, but I don't want to squash other import errors.
+                # Might be better to try a directory check directly.
+                if "No module named" in str(e) and MIGRATIONS_MODULE_NAME in str(e):
+                    self.unmigrated_apps.add(app_config.label)
+                    continue
                 raise
-            else:
-                # Empty directories are namespaces.
-                # getattr() needed on PY36 and older (replace w/attribute access).
-                if getattr(module, '__file__', None) is None:
-                    self.unmigrated_apps.add(app_config.label)
-                    continue
-                # Module is not a package (e.g. migrations.py).
-                if not hasattr(module, '__path__'):
-                    self.unmigrated_apps.add(app_config.label)
-                    continue
-                # Force a reload if it's already loaded (tests need this)
-                if was_loaded:
-                    reload(module)
-            self.migrated_apps.add(app_config.label)
-            migration_names = {
-                name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
-                if not is_pkg and name[0] not in '_~'
+            # Module is not a package (e.g. migrations.py file)
+            if not hasattr(module, '__path__'):
+                self.unmigrated_apps.add(app_config.label)
             }
             # Load migrations
             for migration_name in migration_names:
