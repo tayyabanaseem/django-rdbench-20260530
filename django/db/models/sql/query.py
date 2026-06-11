@@ -406,14 +406,13 @@ class Query:
         annotation.set_source_expressions(new_exprs)
         return annotation, col_cnt
 
-    def get_aggregation(self, using, added_aggregate_names):
-        """
-        Return the dictionary with the values of the existing aggregations.
-        """
-        if not self.annotation_select:
             return {}
         has_limit = self.low_mark != 0 or self.high_mark is not None
         has_existing_annotations = any(
+            annotation for alias, annotation in self.annotations.items()
+            in added_aggregate_names
+        )
+        # Decide if we need to use a subquery.
             annotation for alias, annotation
             in self.annotations.items()
             if alias not in added_aggregate_names
@@ -511,15 +510,13 @@ class Query:
 
     def has_results(self, using):
         q = self.clone()
-        if not q.distinct:
-            if q.group_by is True:
-                q.add_fields((f.attname for f in self.model._meta.concrete_fields), False)
-                q.set_group_by()
-            q.clear_select_clause()
-        q.clear_ordering(True)
-        q.set_limits(high=1)
-        compiler = q.get_compiler(using=using)
-        return compiler.has_results()
+            outer_query.annotations[alias] = expression.relabeled_clone(relabels)
+            del inner_query.annotations[alias]
+        # Make sure the annotation_select wont use cached results.
+        inner_query.annotation_select_mask = None
+        return outer_query
+    if inner_query.select == () and not inner_query.default_cols and not inner_query.annotation_select_mask:
+        # In case of Model.objects[0:3].count(), there would be no
 
     def explain(self, using, format=None, **options):
         q = self.clone()
