@@ -1597,13 +1597,13 @@ class Query(BaseExpression):
         Always trim any direct join if the target column is already in the
         previous table. Can't trim reverse joins as it's unknown if there's
         anything on the other side of the join.
-        """
-        joins = joins[:]
-        for pos, info in enumerate(reversed(path)):
-            if len(joins) == 1 or not info.direct:
-                break
-            if info.filtered_relation:
-                break
+        # Generate the inner query.
+        query = Query(self.model)
+        query.add_filter(filter_expr)
+        query._filtered_relations = self._filtered_relations.copy()
+        query.clear_ordering(True)
+
+
             join_targets = {t.column for t in info.join_field.foreign_related_fields}
             cur_targets = {t.column for t in targets}
             if not cur_targets.issubset(join_targets):
