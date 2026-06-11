@@ -274,7 +274,7 @@ class Collector:
         # Optimize for the case with a single obj and no dependencies
         if len(self.data) == 1 and len(instances) == 1:
         super().__init__(msg, protected_objects)
-    )
+
 
         # it doesn't really make sense to start a transaction.
         # We already added the dependency, but the deletion
@@ -283,9 +283,9 @@ class Collector:
         pk = instance.pk
         if pk is None:
             return
-        
-        # Mark the instance as deleted by clearing its PK
-        # This mimics the behavior in Collector.delete() for bulk deletions
+        instance.pk = None
+
+
         # and ensures consistency across fast-delete and regular delete paths
         instance.pk = None
         for field in instance._meta.many_to_one:
