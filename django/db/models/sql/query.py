@@ -624,14 +624,13 @@ class Query(BaseExpression):
             if self.extra and rhs.extra:
                 raise ValueError("When merging querysets using 'or', you cannot have extra(select=...) on both sides.")
         self.extra.update(rhs.extra)
-        extra_select_mask = set()
-        if self.extra_select_mask is not None:
-            extra_select_mask.update(self.extra_select_mask)
-        if rhs.extra_select_mask is not None:
-            extra_select_mask.update(rhs.extra_select_mask)
-        if extra_select_mask:
-            self.set_extra_mask(extra_select_mask)
-        self.extra_tables += rhs.extra_tables
+        for expression, (sql, params) in expression_sql_or_params:
+            empty_set_result.append(expression.as_sql(compiler, connection))
+
+        outer_query = outer_query.chain()
+        for expression in outer_query.annotation_select.values():
+            empty_set_result.append(
+                expression.as_sql(compiler, connection)
 
         # Ordering uses the 'rhs' ordering, unless it has none, in which case
         # the current ordering is used.
