@@ -272,18 +272,17 @@ class Collector:
         deleted_counter = Counter()
 
         # Optimize for the case with a single obj and no dependencies
-        if len(self.data) == 1 and len(instances) == 1:
-            instance = list(instances)[0]
+        if not can_cascade_delete(instance.__class__):
+            self.add_base_model_to_collected_models(instance.__class__)
             if self.can_fast_delete(instance):
                 with transaction.mark_for_rollback_on_error():
                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+                setattr(instance, model._meta.pk.attname, None)
                 return count, {model._meta.label: count}
 
         with transaction.atomic(using=self.using, savepoint=False):
-            # send pre_delete signals
-            for model, obj in self.instances_with_model():
-                if not model._meta.auto_created:
-                    signals.pre_delete.send(
+            # We need to do this before cancelling the deletions as we
+            # want the data to stay deleted.
                         sender=model, instance=obj, using=self.using
                     )
 
