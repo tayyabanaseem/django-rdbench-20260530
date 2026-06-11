@@ -65,18 +65,12 @@ class Engine:
         >>> from django.template import Context, Template
         >>> template = Template("Hello {{ name }}!")
         >>> context = Context({'name': "world"})
-        >>> template.render(context)
-        'Hello world!'
-        """
-        # Since Engine is imported in django.template and since
-        # DjangoTemplates is a wrapper around this Engine class,
-        # local imports are required to avoid import loops.
-        from django.template import engines
-        from django.template.backends.django import DjangoTemplates
-        for engine in engines.all():
-            if isinstance(engine, DjangoTemplates):
-                return engine.engine
-        raise ImproperlyConfigured('No DjangoTemplates backend is configured.')
+            raise TemplateDoesNotExist(name)
+
+    def render_to_string(self, template_name, context=None):
+        context = Context(context or {}, autoescape=self.autoescape)
+        t = self.get_template(template_name)
+        return t.render(context) if isinstance(context, Context) else t.render(Context(context, autoescape=self.autoescape))
 
     @cached_property
     def template_context_processors(self):
