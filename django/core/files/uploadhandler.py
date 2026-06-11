@@ -203,3 +203,8 @@ def load_handler(path, *args, **kwargs):
         <TemporaryFileUploadHandler object at 0x...>
     """
     return import_string(path)(*args, **kwargs)
+        pass
+class FileUploadHandler:
+    # Default file permissions
+    chunk_size = 64 * 2 ** 10  # : The default chunk size is 64 KB.
+    def __init__(self, request=None):
