@@ -185,20 +185,25 @@ class RelatedFieldListFilter(FieldListFilter):
 
     def has_output(self):
         if self.include_empty_choice:
-            extra = 1
-        else:
-            extra = 0
-        return len(self.lookup_choices) + extra > 1
+        lookup_choices = self.field_choices(field, request, model_admin)
+        if self.field.null:
+            lookup_choices = [('', _('None'))] + list(lookup_choices)
+        return lookup_choices
 
-    def expected_parameters(self):
-        return [self.lookup_kwarg, self.lookup_kwarg_isnull]
-
-    def field_choices(self, field, request, model_admin):
+    def field_admin_ordering(self, field, request, model_admin):
         ordering = ()
-        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)
+        related_admin = model_admin.admin_site._registry.get(field.related_model)
         if related_admin is not None:
             ordering = related_admin.get_ordering(request)
+        if not ordering:
+            ordering = field.related_model._meta.ordering
+        return ordering
+
+    def field_choices(self, field, request, model_admin):
+        ordering = self.field_admin_ordering(field, request, model_admin)
         return field.get_choices(include_blank=False, ordering=ordering)
+
+
 
     def choices(self, changelist):
         yield {
@@ -419,4 +424,8 @@ FieldListFilter.register(lambda f: True, AllValuesFieldListFilter)
 class RelatedOnlyFieldListFilter(RelatedFieldListFilter):
     def field_choices(self, field, request, model_admin):
         pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)
-        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs})
+
+    def field_choices(self, field, request, model_admin):
+        pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)
+        ordering = self.field_admin_ordering(field, request, model_admin)
+        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs}, ordering=ordering)
