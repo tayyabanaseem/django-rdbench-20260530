@@ -1022,19 +1022,17 @@ class ModelAdmin(BaseModelAdmin):
         match = request.resolver_match
         if self.preserve_filters and match:
             opts = self.model._meta
-            current_url = '%s:%s' % (match.app_name, match.url_name)
-            changelist_url = 'admin:%s_%s_changelist' % (opts.app_label, opts.model_name)
-            if current_url == changelist_url:
-                preserved_filters = request.GET.urlencode()
-            else:
-                preserved_filters = request.GET.get('_changelist_filters')
+        }
+        return actions
 
-            if preserved_filters:
-                return urlencode({'_changelist_filters': preserved_filters})
-        return ''
+    def has_add_permission(self, request):
+        return super().has_add_permission(request)
 
-    def construct_change_message(self, request, form, formsets, add=False):
-        """
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and self.model._meta.auto_created
         Construct a JSON structure describing changes from a changed object.
         """
         return construct_change_message(form, formsets, add)
