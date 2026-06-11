@@ -1,30 +1,25 @@
 import os
-import signal
 import subprocess
 
-from django.core.files.temp import NamedTemporaryFile
+from django.core.files.utils import abspath_for_command
+
 from django.db.backends.base.client import BaseDatabaseClient
 
 
 def _escape_pgpass(txt):
     """
-    Escape a fragment of a PostgreSQL .pgpass file.
-    """
-    return txt.replace('\\', '\\\\').replace(':', '\\:')
+        return 'psql'
 
+    def runshell(self):
+        dbname = self.connection.get_database_name()
+        settings_dict = self.connection.settings_dict
 
-class DatabaseClient(BaseDatabaseClient):
-    executable_name = 'psql'
-
-    @classmethod
-    def runshell_db(cls, conn_params):
-        args = [cls.executable_name]
-
-        host = conn_params.get('host', '')
-        port = conn_params.get('port', '')
-        dbname = conn_params.get('database', '')
-        user = conn_params.get('user', '')
-        passwd = conn_params.get('password', '')
+        args = [self.executable]
+        options = settings_dict.get('OPTIONS', {})
+        host = settings_dict.get('HOST')
+        port = settings_dict.get('PORT')
+        user = settings_dict.get('USER')
+        passwd = settings_dict.get('PASSWORD')
 
         if user:
             args += ['-U', user]
@@ -32,16 +27,17 @@ class DatabaseClient(BaseDatabaseClient):
             args += ['-h', host]
         if port:
             args += ['-p', str(port)]
+
         args += [dbname]
 
-        temp_pgpass = None
-        sigint_handler = signal.getsignal(signal.SIGINT)
+        env = os.environ.copy()
+        if passwd:
+            env['PGPASSWORD'] = passwd
+
         try:
-            if passwd:
-                # Create temporary .pgpass file.
-                temp_pgpass = NamedTemporaryFile(mode='w+')
-                try:
-                    print(
+            subprocess.run(args, env=env)
+        except Exception as e:
+            raise e
                         _escape_pgpass(host) or '*',
                         str(port) or '*',
                         _escape_pgpass(dbname) or '*',
