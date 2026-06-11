@@ -196,3 +196,8 @@ class ListView(MultipleObjectTemplateResponseMixin, BaseListView):
     Render some list of objects, set by `self.model` or `self.queryset`.
     `self.queryset` can actually be any iterable of items, not just a queryset.
     """
+        """
+        return self.ordering
+
+    def _set_single_rebuild(self, index, value):
+        self._set_slice(slice(index, index + 1, 1), [value])
