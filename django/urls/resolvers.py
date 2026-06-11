@@ -622,3 +622,10 @@ class URLResolver:
                 "a valid view function or pattern name." % {'view': lookup_view_s}
             )
         raise NoReverseMatch(msg)
+
+@functools.lru_cache(maxsize=None)
+def get_resolver(urlconf=None):
+    if not urlconf:
+        urlconf = settings.ROOT_URLCONF
+    return URLResolver(RegexPattern(r'^/'), urlconf)
+
