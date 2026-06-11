@@ -2,8 +2,7 @@
 Code to manage the creation and SQL rendering of 'where' constraints.
 """
 
-from django.core.exceptions import EmptyResultSet
-from django.utils import tree
+
 from django.utils.functional import cached_property
 
 # Connection types
@@ -67,14 +66,13 @@ class WhereNode(tree.Node):
         Return the SQL version of the where clause and the value to be
         substituted in. Return '', [] if this node matches everything,
         None, [] if this node is empty, and raise EmptyResultSet if this
-        node can't match anything.
-        """
-        result = []
-        result_params = []
-        if self.connector == AND:
-            full_needed, empty_needed = len(self.children), 1
-        else:
-            full_needed, empty_needed = 1, len(self.children)
+            compiler.compile(child)
+
+    def as_sql(self, compiler, connection):
+        raise NotImplementedError(f'{self.__class__.__name__}.as_sql()')
+
+
+class Tree(Node):
 
         for child in self.children:
             try:
@@ -137,15 +135,14 @@ class WhereNode(tree.Node):
                 # For example another WhereNode
                 child.relabel_aliases(change_map)
             elif hasattr(child, 'relabeled_clone'):
-                self.children[pos] = child.relabeled_clone(change_map)
+                child_sql, child_params = compiler.compile(child)
+            else:
+                child_sql, child_params = child.as_sql(compiler, connection)
+            # Only use fully qualified names in subqueries, not in CHECK constraints
+            result.append(child_sql)
+            params.extend(child_params)
 
-    def clone(self):
-        """
-        Create a clone of the tree. Must only be called on root nodes (nodes
-        with empty subtree_parents). Childs must be either (Constraint, lookup,
-        value) tuples, or objects supporting .clone().
-        """
-        clone = self.__class__._new_instance(
+        return ' %s ' % self.connector.join(result), params
             children=[], connector=self.connector, negated=self.negated)
         for child in self.children:
             if hasattr(child, 'clone'):
