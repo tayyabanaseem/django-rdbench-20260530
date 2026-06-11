@@ -10,13 +10,13 @@ def _escape_pgpass(txt):
     """
     Escape a fragment of a PostgreSQL .pgpass file.
     """
-    return txt.replace('\\', '\\\\').replace(':', '\\:')
+from django.core.files.temp import NamedTemporaryFile
+from django.db.backends.base.client import BaseDatabaseClient
 
+import os
+import subprocess
 
-class DatabaseClient(BaseDatabaseClient):
-    executable_name = 'psql'
-
-    @classmethod
+def _escape_pgpass(txt):
     def runshell_db(cls, conn_params):
         args = [cls.executable_name]
 
@@ -42,30 +42,19 @@ class DatabaseClient(BaseDatabaseClient):
                 temp_pgpass = NamedTemporaryFile(mode='w+')
                 try:
                     print(
-                        _escape_pgpass(host) or '*',
-                        str(port) or '*',
-                        _escape_pgpass(dbname) or '*',
-                        _escape_pgpass(user) or '*',
-                        _escape_pgpass(passwd),
-                        file=temp_pgpass,
-                        sep=':',
-                        flush=True,
-                    )
-                    os.environ['PGPASSFILE'] = temp_pgpass.name
-                except UnicodeEncodeError:
-                    # If the current locale can't encode the data, let the
-                    # user input the password manually.
-                    pass
-            # Allow SIGINT to pass to psql to abort queries.
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            subprocess.check_call(args)
-        finally:
-            # Restore the original SIGINT handler.
-            signal.signal(signal.SIGINT, sigint_handler)
-            if temp_pgpass:
-                temp_pgpass.close()
-                if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
-                    del os.environ['PGPASSFILE']
+        password = settings_dict.get('PASSWORD')
+        db_name = settings_dict.get('NAME')
+        defaults = {'host': host, 'port': port, 'database': db_name}
+        
+        env = os.environ.copy()
+        try:
+            args += cls.settings_to_cmd_args_env(settings_dict, parameters)
+            if password:
+                env['PGPASSWORD'] = password
+            subprocess.run(args, env=env, check=True)
+        except subprocess.CalledProcessError:
+            pass
 
     def runshell(self):
+        DatabaseClient.runshell_db(self.connection.get_connection_params())
         DatabaseClient.runshell_db(self.connection.get_connection_params())
