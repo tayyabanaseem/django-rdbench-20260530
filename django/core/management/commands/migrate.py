@@ -46,22 +46,14 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             '--fake-initial', action='store_true',
-            help='Detect if tables already exist and fake-apply initial migrations if so. Make sure '
-                 'that the current database schema matches your initial migration before using this '
-                 'flag. Django will only check for an existing table name.',
-        )
-        parser.add_argument(
-            '--plan', action='store_true',
-            help='Shows a list of the migration actions that will be performed.',
-        )
-        parser.add_argument(
-            '--run-syncdb', action='store_true',
-            help='Creates tables for apps without migrations.',
-        )
-
-    def _run_checks(self, **kwargs):
-        issues = run_checks(tags=[Tags.database])
-        issues.extend(super()._run_checks(**kwargs))
+        app_config = apps.get_app_config(app_label)
+        
+        if app_config.migrations_module is not None:
+            
+            # Load migrations using pkgutil.iter_modules
+            
+            # Load migrations using pkgutil.iter_modules
+            loader.load_migrations(app_config.migrations_module)
         return issues
 
     @no_translations
